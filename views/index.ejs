@@ -1,0 +1,98 @@
+<% /* views/index.ejs - fixed: removed template string and renderToBody */ %>
+<div class="row">
+  <div class="col-12">
+    <h1 class="mb-4">📊 Elasticsearch Ads Index Dashboard</h1>
+  </div>
+</div>
+
+<div class="row mb-4">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0">📈 Index Statistics</h5>
+      </div>
+      <div class="card-body">
+        <% if (stats.success) { %>
+          <div class="row">
+            <div class="col-6">
+              <h3 class="text-primary"><%= stats.data.indices.ads.total.docs.count.toLocaleString() %></h3>
+              <small class="text-muted">Total Documents</small>
+            </div>
+            <div class="col-6">
+              <h3 class="text-success"><%= (stats.data.indices.ads.total.store.size_in_bytes / (1024*1024)).toFixed(2) %> MB</h3>
+              <small class="text-muted">Index Size</small>
+            </div>
+          </div>
+        <% } else { %>
+          <div class="alert alert-danger">
+            Error loading stats: <%= stats.error %>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0">🔍 Quick Actions</h5>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <a href="/search" class="btn btn-primary">🔍 Search Documents</a>
+          <a href="/browse" class="btn btn-outline-primary">📋 Browse All Data</a>
+          <a href="/custom" class="btn btn-outline-secondary">⚙️ Custom Query</a>
+          <a href="/aggregate" class="btn btn-outline-info">📊 Aggregations</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0">🗂️ Index Fields (<%= fields.length %> fields)</h5>
+      </div>
+      <div class="card-body">
+        <% if (mapping.success && fields.length > 0) { %>
+          <div class="row">
+            <% fields.forEach((field, index) => { %>
+              <div class="col-md-3 col-sm-6 mb-2">
+                <span class="badge bg-light text-dark"><%= field %></span>
+              </div>
+            <% }); %>
+          </div>
+        <% } else { %>
+          <div class="alert alert-warning">
+            <% if (!mapping.success) { %>
+              Error loading mapping: <%= mapping.error %>
+            <% } else { %>
+              No fields found in the index.
+            <% } %>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<% if (mapping.success) { %>
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">🔧 Index Mapping</h5>
+        </div>
+        <div class="card-body">
+          <div class="json-viewer">
+            <pre><code class="language-json"><%= JSON.stringify(mapping.data, null, 2) %></code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+<% } %>
+
+<%- include('layout', { body: null, title: 'Dashboard - Elasticsearch Query System' }) %>

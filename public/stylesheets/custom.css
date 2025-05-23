@@ -1,0 +1,69 @@
+.json-viewer {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    max-height: 400px;
+    overflow-y: auto;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.875rem;
+}
+
+.result-item {
+    border-left: 3px solid #0d6efd;
+    background: #f8f9fa;
+    transition: box-shadow 0.15s ease-in-out;
+}
+
+.result-item:hover {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.highlight {
+    background-color: #fff3cd;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-weight: bold;
+}
+
+.nav-pills .nav-link.active {
+    background-color: #0d6efd;
+}
+
+.progress {
+    background-color: #e9ecef;
+}
+
+.card-header {
+    font-weight: 600;
+}
+
+.badge {
+    font-size: 0.75em;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .json-viewer {
+        background: #2d3748;
+        border-color: #4a5568;
+        color: #e2e8f0;
+    }
+
+    .result-item {
+        background: #2d3748;
+        border-left-color: #4299e1;
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .json-viewer {
+        font-size: 0.75rem;
+        max-height: 300px;
+    }
+
+    .pagination {
+        font-size: 0.875rem;
+    }
+}

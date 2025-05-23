@@ -1,0 +1,135 @@
+<%
+const customBody = `
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">⚙️ Custom Elasticsearch Query</h1>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Query Builder</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/custom">
+                    <div class="mb-3">
+                        <label for="query" class="form-label">Elasticsearch Query Body (JSON)</label>
+                        <textarea name="query" id="query" class="form-control" rows="15" placeholder="Enter your Elasticsearch query...">
+${query ? query : `{
+  "query": {
+    "match_all": {}
+  },
+  "size": 10
+}`}
+                        </textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Execute Query</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Query Examples</h5>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="examplesAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example1">
+                                Match Query
+                            </button>
+                        </h2>
+                        <div id="example1" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                            <div class="accordion-body">
+                                <pre><code class="language-json">{
+  "query": {
+    "match": {
+      "title": "advertisement"
+    }
+  },
+  "size": 10
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example2">
+                                Range Query
+                            </button>
+                        </h2>
+                        <div id="example2" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                            <div class="accordion-body">
+                                <pre><code class="language-json">{
+  "query": {
+    "range": {
+      "price": {
+        "gte": 100,
+        "lte": 1000
+      }
+    }
+  },
+  "size": 10
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example3">
+                                Aggregation
+                            </button>
+                        </h2>
+                        <div id="example3" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                            <div class="accordion-body">
+                                <pre><code class="language-json">{
+  "size": 0,
+  "aggs": {
+    "categories": {
+      "terms": {
+        "field": "category.keyword",
+        "size": 10
+      }
+    }
+  }
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+${result ? `
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">${result.success ? '✅ Query Results' : '❌ Query Error'}</h5>
+            </div>
+            <div class="card-body">
+                ${result.success ? `
+                    <p><strong>Total Results:</strong> ${result.total.toLocaleString()}</p>
+                    <div class="json-viewer">
+                        <pre><code class="language-json">${JSON.stringify(result.data, null, 2)}</code></pre>
+                    </div>
+                ` : `
+                    <div class="alert alert-danger">
+                        <strong>Error:</strong> ${result.error}
+                    </div>
+                `}
+            </div>
+        </div>
+    </div>
+</div>
+` : ''}
+`;
+%>
+<%- include('layout', { body: customBody, title: 'Custom Query - Elasticsearch Query System' }) %>

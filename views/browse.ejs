@@ -1,0 +1,92 @@
+<%
+// Prepare the browse body content first
+const browseBody = `
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">📋 Browse All Documents</h1>
+    </div>
+</div>
+
+<!-- Index selector -->
+<div class="row mb-3">
+    <div class="col-12">
+        <form method="GET" action="/browse" class="d-flex mb-3">
+            <input type="text" name="index" class="form-control me-2" placeholder="Index name" value="${currentIndex}">
+            <button type="submit" class="btn btn-primary">Switch Index</button>
+        </form>
+    </div>
+</div>
+
+${result.success ? `
+<div class="row mb-3">
+    <div class="col-md-8">
+        <h5>Showing ${((page-1) * size) + 1}-${Math.min(page * size, result.total)} of ${result.total.toLocaleString()} documents in <code>${currentIndex}</code></h5>
+    </div>
+    <div class="col-md-4">
+        <form method="GET" action="/browse" class="d-flex">
+            <input type="hidden" name="index" value="${currentIndex}">
+            <select name="size" class="form-select me-2">
+                <option value="10" ${size === 10 ? 'selected' : ''}>10 per page</option>
+                <option value="20" ${size === 20 ? 'selected' : ''}>20 per page</option>
+                <option value="50" ${size === 50 ? 'selected' : ''}>50 per page</option>
+            </select>
+            <button type="submit" class="btn btn-outline-primary">Update</button>
+        </form>
+    </div>
+</div>
+
+${totalPages > 1 ? `
+<div class="row mb-3">
+    <div class="col-12">
+        <nav>
+            <ul class="pagination justify-content-center">
+                ${page > 1 ? `<li class="page-item"><a class="page-link" href="/browse?index=${currentIndex}&size=${size}&page=${page-1}">Previous</a></li>` : ''}
+                ${Array.from({length: Math.min(10, totalPages)}, (_, i) => {
+    const pageNum = Math.max(1, page - 5) + i;
+    if (pageNum <= totalPages) {
+        return `<li class="page-item ${pageNum === page ? 'active' : ''}">
+                            <a class="page-link" href="/browse?index=${currentIndex}&size=${size}&page=${pageNum}">${pageNum}</a>
+                        </li>`;
+    }
+    return '';
+}).join('')}
+                ${page < totalPages ? `<li class="page-item"><a class="page-link" href="/browse?index=${currentIndex}&size=${size}&page=${page+1}">Next</a></li>` : ''}
+            </ul>
+        </nav>
+    </div>
+</div>
+` : ''}
+
+<div class="row">
+    <div class="col-12">
+        ${result.data && result.data.length === 0
+        ? '<div class="alert alert-warning">No documents found in this index.</div>'
+        : (result.data || []).map((hit, index) => `
+        <div class="card mb-3">
+            <div class="card-header">
+                <strong>Document ${((page-1) * size) + index + 1}: ${hit._id}</strong>
+                <span class="badge bg-secondary float-end">${hit._score ? 'Score: ' + hit._score : ''}</span>
+            </div>
+            <div class="card-body">
+                <div class="json-viewer">
+                    <pre><code class="language-json">${JSON.stringify(hit._source, null, 2)}</code></pre>
+                </div>
+            </div>
+        </div>
+        `).join('')}
+    </div>
+</div>
+
+` : `
+<div class="alert alert-danger">
+    <strong>Error:</strong> ${result.error}
+</div>
+`}
+`;
+
+// Now include the layout with the prepared content
+%>
+<%- include('layout', {
+body: browseBody,
+title: 'Browse - Elasticsearch Query System'
+}) %>
