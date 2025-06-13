@@ -2,16 +2,18 @@ const express = require('express');
 const router = express.Router();
 const moment = require('moment');
 const ElasticsearchService = require('../services/elastic_search_service');
+const RideLocationHistoryFetcher = require('../services/RideLocationHistoryFetcher');
 const { Client } = require('@elastic/elasticsearch');
-
-// Create client for health check
-const client = new Client({
-  cloud: { id: process.env.ELASTICSEARCH_URL},
+const esConfig ={
+  cloud: { id: process.env.ELASTIC_CLOUD_ID},
   auth: {
-    username: process.env.ES_USERNAME,
-    password: process.env.ES_PASSWORD
+    username: process.env.ELASTIC_USERNAME,
+    password: process.env.ELASTIC_PASSWORD
   }
-});
+};
+// Create client for health check
+const client = new Client(esConfig);
+const fetcher = new RideLocationHistoryFetcher(esConfig);
 
 // Get index from environment or use default
 const DEFAULT_INDEX = process.env.ELASTICSEARCH_INDEX || 'ads';
@@ -215,4 +217,60 @@ router.get('/api/health', async (req, res) => {
   }
 });
 
+// Routes
+router.get('/ride-log-history', (req, res) => {
+  res.render('rideLogHistory', {
+    title: 'Ride Location Dashboard',
+    moment: moment
+  });
+});
+
+router.post('/api/search', async (req, res) => {
+  try {
+    const { driverId, timeRange, customStart, customEnd, recordLimit } = req.body;
+
+    if (!driverId) {
+      return res.status(400).json({ error: 'Driver ID is required' });
+    }
+
+    let result;
+    const options = { size: parseInt(recordLimit) || 500 };
+
+    switch (timeRange) {
+      case 'last24h':
+        result = await fetcher.getRecentRideLocationHistory(driverId, 24, options);
+        break;
+      case 'last7d':
+        result = await fetcher.getRecentRideLocationHistory(driverId, 168, options);
+        break;
+      case 'custom':
+        if (!customStart || !customEnd) {
+          return res.status(400).json({ error: 'Custom date range requires both start and end dates' });
+        }
+        result = await fetcher.getRideLocationHistoryByTimeRange(driverId, customStart, customEnd, options);
+        break;
+      default:
+        result = await fetcher.getRecentRideLocationHistory(driverId, 24, options);
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({ error: 'Failed to fetch data', details: error.message });
+  }
+});
+
+router.get('/api/driver/:driverId/recent', async (req, res) => {
+  try {
+    const { driverId } = req.params;
+    const hours = parseInt(req.query.hours) || 24;
+    const size = parseInt(req.query.size) || 100;
+
+    const result = await fetcher.getRecentRideLocationHistory(driverId, hours, { size });
+    res.json(result);
+  } catch (error) {
+    console.error('API error:', error);
+    res.status(500).json({ error: 'Failed to fetch data', details: error.message });
+  }
+});
 module.exports = router;

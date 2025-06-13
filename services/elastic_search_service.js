@@ -1,9 +1,9 @@
 const {Client} = require("@elastic/elasticsearch");
 const client = new Client({
-    cloud: { id: process.env.ELASTICSEARCH_URL},
+    cloud: { id: process.env.ELASTIC_CLOUD_ID},
     auth: {
-        username: process.env.ES_USERNAME,
-        password: process.env.ES_PASSWORD
+        username: process.env.ELASTIC_USERNAME,
+        password: process.env.ELASTIC_PASSWORD
     }
 });
 
