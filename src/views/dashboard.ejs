@@ -1,0 +1,193 @@
+
+<!-- views/dashboard.ejs -->
+<%
+const dashboardBody = `
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-tachometer-alt text-primary"></i> 
+            Universal Elasticsearch Dashboard
+        </h1>
+    </div>
+</div>
+
+${!hasConnections ? `
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-warning">
+            <h4><i class="fas fa-exclamation-triangle"></i> No Elasticsearch Connections</h4>
+            <p>To get started, you need to add at least one Elasticsearch connection.</p>
+            <a href="/connections" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Add Connection
+            </a>
+        </div>
+    </div>
+</div>
+` : `
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-plug fa-2x mb-2"></i>
+                <h3>${dashboardData.totalConnections}</h3>
+                <p class="mb-0">Connections</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-list fa-2x mb-2"></i>
+                <h3>${dashboardData.totalIndices}</h3>
+                <p class="mb-0">Total Indices</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-file-alt fa-2x mb-2"></i>
+                <h3>${dashboardData.indices.reduce((sum, idx) => sum + parseInt(idx['docs.count'] || 0), 0).toLocaleString()}</h3>
+                <p class="mb-0">Documents</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-hdd fa-2x mb-2"></i>
+                <h3>${dashboardData.indices.reduce((sum, idx) => {
+                    const sizeStr = (idx['store.size'] || '0kb').replace(/[^0-9.]/g, '');
+                    return sum + parseFloat(sizeStr || 0);
+                }, 0).toFixed(1)}MB</h3>
+                <p class="mb-0">Storage</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-bolt"></i> Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <a href="/connections" class="btn btn-outline-primary w-100 mb-2">
+                            <i class="fas fa-plug"></i><br>
+                            Manage Connections
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="/indices" class="btn btn-outline-success w-100 mb-2">
+                            <i class="fas fa-list"></i><br>
+                            Browse Indices
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="/search" class="btn btn-outline-info w-100 mb-2">
+                            <i class="fas fa-search"></i><br>
+                            Search Data
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="/custom" class="btn btn-outline-secondary w-100 mb-2">
+                            <i class="fas fa-code"></i><br>
+                            Custom Queries
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Active Connections -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-network-wired"></i> Active Connections</h5>
+            </div>
+            <div class="card-body">
+                ${Object.keys(dashboardData.connections).length === 0 ? `
+                    <p class="text-muted">No active connections</p>
+                ` : `
+                    <div class="row">
+                        ${Object.entries(dashboardData.connections).map(([id, conn]) => `
+                            <div class="col-md-4 mb-3">
+                                <div class="card border-primary">
+                                    <div class="card-body">
+                                        <h6 class="card-title">${conn.name}</h6>
+                                        <p class="card-text small">
+                                            <strong>Cloud ID:</strong> ${conn.cloudId.substring(0, 20)}...<br>
+                                            <strong>User:</strong> ${conn.username}
+                                        </p>
+                                        <a href="/indices?connection=${id}" class="btn btn-sm btn-primary">
+                                            View Indices
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Indices -->
+${dashboardData.indices.length > 0 ? `
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-clock"></i> Recent Indices</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    ${dashboardData.indices.map(index => `
+                        <div class="col-md-4 mb-3">
+                            <div class="card index-card border-secondary">
+                                <div class="card-body">
+                                    <h6 class="card-title">${index.index}</h6>
+                                    <p class="card-text">
+                                        <span class="badge bg-${index.health === 'green' ? 'success' : index.health === 'yellow' ? 'warning' : 'danger'}">
+                                            ${index.health}
+                                        </span>
+                                        <span class="badge bg-secondary">${parseInt(index['docs.count'] || 0).toLocaleString()} docs</span>
+                                    </p>
+                                    <div class="btn-group w-100" role="group">
+                                        <a href="/index/${index.index}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="/search?index=${index.index}" class="btn btn-sm btn-outline-success">
+                                            <i class="fas fa-search"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                ${dashboardData.totalIndices > 10 ? `
+                    <div class="text-center">
+                        <a href="/indices" class="btn btn-primary">
+                            View All ${dashboardData.totalIndices} Indices
+                        </a>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    </div>
+</div>
+` : ''}
+`}
+`;
+%>
+<%- include('layout', { body: dashboardBody, title: 'Dashboard - Universal Elasticsearch' }) %>

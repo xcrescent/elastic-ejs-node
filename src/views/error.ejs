@@ -1,0 +1,28 @@
+<%
+const errorBody = `
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Error</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger">
+                    <p><strong>Something went wrong:</strong></p>
+                    <p>${error}</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="/" class="btn btn-primary">
+                        <i class="fas fa-home"></i> Back to Dashboard
+                    </a>
+                    <button onclick="history.back()" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Go Back
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+`;
+%>
+<%- include('layout', { body: errorBody, title: 'Error - ES Dashboard' }) %>

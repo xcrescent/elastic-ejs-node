@@ -309,4 +309,4 @@ class RideLocationHistoryFetcher {
 // }
 
 
-module.exports = RideLocationHistoryFetcher;
+module.exports = new RideLocationHistoryFetcher();

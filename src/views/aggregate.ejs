@@ -1,0 +1,182 @@
+
+<!-- views/aggregate.ejs -->
+<%
+const aggregateBody = `
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-chart-bar text-primary"></i> 
+            Data Aggregations
+        </h1>
+    </div>
+</div>
+
+<!-- Connection and Index Selector -->
+<div class="connection-selector">
+    <form method="GET" action="/aggregate">
+        <div class="row align-items-end">
+            <div class="col-md-4">
+                <label for="connectionSelect" class="form-label">Connection:</label>
+                <select name="connection" id="connectionSelect" class="form-select" onchange="loadIndicesForConnection(this.value, 'indexSelect')">
+                    <option value="">Select connection...</option>
+                    ${Object.entries(connections).map(([id, conn]) => `
+                        <option value="${id}" ${currentConnection === id ? 'selected' : ''}>
+                            ${conn.name}
+                        </option>
+                    `).join('')}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="indexSelect" class="form-label">Index:</label>
+                <select name="index" id="indexSelect" class="form-select">
+                    <option value="">Select index...</option>
+                    ${currentIndex ? `<option value="${currentIndex}" selected>${currentIndex}</option>` : ''}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-outline-primary">
+                    <i class="fas fa-sync"></i> Update
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+${currentConnection && currentIndex ? `
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-tools"></i> Aggregation Builder</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/aggregate">
+                    <input type="hidden" name="connection" value="${currentConnection}">
+                    <input type="hidden" name="index" value="${currentIndex}">
+                    
+                    <div class="mb-3">
+                        <label for="field" class="form-label">Field to Aggregate</label>
+                        <select name="field" id="field" class="form-select" required>
+                            <option value="">Select a field...</option>
+                            
+                            ${fields.map(field => `
+                                <option value="${field}" ${selectedField === field ? 'selected' : ''}>${field}</option>
+                                <option value="${field}.keyword" ${selectedField === field + '.keyword' ? 'selected' : ''}>${field}.keyword</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="size" class="form-label">Number of Buckets</label>
+                        <select name="size" id="size" class="form-select">
+                            <option value="5" ${selectedSize === 5 ? 'selected' : ''}>5</option>
+                            <option value="10" ${selectedSize === 10 ? 'selected' : ''}>10</option>
+                            <option value="20" ${selectedSize === 20 ? 'selected' : ''}>20</option>
+                            <option value="50" ${selectedSize === 50 ? 'selected' : ''}>50</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-chart-bar"></i> Generate Aggregation
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-info-circle"></i> About Aggregations</h5>
+            </div>
+            <div class="card-body">
+                <p>Aggregations help you analyze your data by:</p>
+                <ul>
+                    <li><strong>Terms:</strong> Count unique values in a field</li>
+                    <li><strong>Buckets:</strong> Group data by field values</li>
+                    <li><strong>Metrics:</strong> Calculate statistics</li>
+                </ul>
+                <div class="alert alert-info">
+                    <strong>Tip:</strong> Use <code>.keyword</code> suffix for exact text matches and better aggregation results.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+${result ? `
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    ${result.success ? '<i class="fas fa-chart-bar text-success"></i> Aggregation Results' : '<i class="fas fa-exclamation-triangle text-danger"></i> Aggregation Error'}
+                </h5>
+            </div>
+            <div class="card-body">
+                ${result.success ? `
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Value</th>
+                                            <th>Count</th>
+                                            <th>Percentage</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${result.data.map(bucket => {
+                                            const total = result.data.reduce((sum, b) => sum + b.doc_count, 0);
+                                            const percentage = ((bucket.doc_count / total) * 100).toFixed(1);
+                                            return `
+                                                <tr>
+                                                    <td><strong>${bucket.key}</strong></td>
+                                                    <td>${bucket.doc_count.toLocaleString()}</td>
+                                                    <td>
+                                                        <div class="d-flex align-items-center">
+                                                            <div class="progress me-2" style="width: 100px; height: 20px;">
+                                                                <div class="progress-bar" style="width: ${percentage}%"></div>
+                                                            </div>
+                                                            ${percentage}%
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            `;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="json-viewer">
+                                <h6>Raw Data:</h6>
+                                <pre><code class="language-json">${JSON.stringify(result.data, null, 2)}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                ` : `
+                    <div class="alert alert-danger">
+                        <strong>Error:</strong> ${result.error}
+                    </div>
+                `}
+            </div>
+        </div>
+    </div>
+</div>
+` : ''}
+` : `
+<div class="alert alert-warning">
+    <i class="fas fa-info-circle"></i> 
+    Please select a connection and index to start creating aggregations.
+</div>
+`}
+
+<script>
+// Load indices when connection changes
+if (document.getElementById('connectionSelect').value) {
+    loadIndicesForConnection(document.getElementById('connectionSelect').value, 'indexSelect');
+}
+</script>
+`;
+%>
+<%- include('layout', { body: aggregateBody, title: 'Aggregations - ES Dashboard' }) %>

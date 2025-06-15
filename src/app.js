@@ -1,13 +1,10 @@
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
+const express = require('express');
+const path = require('path');
+const cookieParser = require('cookie-parser');
+const logger = require('morgan');
+const indexRouter = require('./routes/index');
 
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
-
-var app = express();
+const app = express();
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -20,18 +17,21 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', indexRouter);
-app.use('/users', usersRouter);
 
 // Error handling
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).render('error', { error: err.message });
+  res.status(500).render('error', {
+    error: err.message,
+    title: 'Error - ES Dashboard'
+  });
 });
 
 app.use((req, res) => {
-  res.status(404).render('error', { error: 'Page not found' });
+  res.status(404).render('error', {
+    error: 'Page not found',
+    title: '404 - ES Dashboard'
+  });
 });
-
-
 
 module.exports = app;

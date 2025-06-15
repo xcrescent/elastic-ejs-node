@@ -1,0 +1,134 @@
+<!-- views/index-details.ejs -->
+<%
+const indexDetailsBody = `
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-database text-primary"></i> 
+            Index: <code>${indexName}</code>
+        </h1>
+    </div>
+</div>
+
+<!-- Connection Info -->
+<div class="connection-selector">
+    <div class="row align-items-center">
+        <div class="col-md-6">
+            <strong><i class="fas fa-plug"></i> Connection:</strong>
+            ${connections[currentConnection] ? connections[currentConnection].name : 'Unknown'}
+        </div>
+        <div class="col-md-6 text-end">
+            <a href="/indices?connection=${currentConnection}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Indices
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <!-- Index Statistics -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-line"></i> Index Statistics</h5>
+            </div>
+            <div class="card-body">
+                ${stats.success && stats.data?.indices?.[indexName]?.total?.docs?.count != null ? `
+    <div class="row">
+        <div class="col-6">
+            <h3 class="text-primary">${Number(stats.data.indices[indexName].total.docs.count).toLocaleString()}</h3>
+            <small class="text-muted">Total Documents</small>
+        </div>
+        <div class="col-6">
+            <h3 class="text-success">${(stats.data.indices[indexName].total.store.size_in_bytes / (1024*1024)).toFixed(2)} MB</h3>
+            <small class="text-muted">Index Size</small>
+        </div>
+    </div>
+    <hr>
+    <div class="row">
+        <div class="col-6">
+            <strong>Shards:</strong> ${Object.keys(stats.data.indices[indexName].shards || {}).length}
+        </div>
+        <div class="col-6">
+            <strong>Updated:</strong> ${moment().format('YYYY-MM-DD HH:mm')}
+        </div>
+    </div>
+` : `
+    <div class="alert alert-danger">
+        Error loading stats: ${stats.error || 'Unexpected structure in stats data'}
+    </div>
+`}
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-bolt"></i> Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="/search?index=${indexName}&connection=${currentConnection}" class="btn btn-primary">
+                        <i class="fas fa-search"></i> Search Documents
+                    </a>
+                    <a href="/custom?index=${indexName}&connection=${currentConnection}" class="btn btn-outline-secondary">
+                        <i class="fas fa-code"></i> Custom Query
+                    </a>
+                    <a href="/aggregate?index=${indexName}&connection=${currentConnection}" class="btn btn-outline-info">
+                        <i class="fas fa-chart-bar"></i> Data Aggregations
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Index Fields -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-list"></i> Index Fields (${fields.length} fields)</h5>
+            </div>
+            <div class="card-body">
+                ${mapping.success && fields.length > 0 ? `
+                    <div class="row">
+                        ${fields.map(field => `
+                            <div class="col-md-3 col-sm-6 mb-2">
+                                <span class="badge bg-light text-dark">${field}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <div class="alert alert-warning">
+                        ${!mapping.success ? `Error loading mapping: ${mapping.error}` : 'No fields found in the index.'}
+                    </div>
+                `}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Full Mapping -->
+${mapping.success ? `
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-code"></i> Full Index Mapping</h5>
+            </div>
+            <div class="card-body">
+                <div class="json-viewer">
+                    <pre><code class="language-json">${JSON.stringify(mapping.data, null, 2)}</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+` : ''}
+`;
+%>
+<%- include('layout', { body: indexDetailsBody, title: `${indexName} - Index Details` }) %>

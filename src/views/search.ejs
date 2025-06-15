@@ -1,0 +1,157 @@
+
+<!-- views/search.ejs -->
+<%
+const searchBody = `
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-search text-primary"></i> 
+            Search Documents
+        </h1>
+    </div>
+</div>
+
+<!-- Connection and Index Selector -->
+<div class="connection-selector">
+    <form method="GET" action="/search">
+        <div class="row align-items-end">
+            <div class="col-md-4">
+                <label for="connectionSelect" class="form-label">Connection:</label>
+                <select name="connection" id="connectionSelect" class="form-select" onchange="loadIndicesForConnection(this.value, 'indexSelect')">
+                    <option value="">Select connection...</option>
+                    ${Object.entries(connections).map(([id, conn]) => `
+                        <option value="${id}" ${currentConnection === id ? 'selected' : ''}>
+                            ${conn.name}
+                        </option>
+                    `).join('')}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="indexSelect" class="form-label">Index:</label>
+                <select name="index" id="indexSelect" class="form-select">
+                    <option value="">Select index...</option>
+                    ${currentIndex ? `<option value="${currentIndex}" selected>${currentIndex}</option>` : ''}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-outline-primary">
+                    <i class="fas fa-sync"></i> Update
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+${currentConnection && currentIndex ? `
+<!-- Search Form -->
+<div class="row mb-4">
+    <div class="col-12">
+        <form method="GET" action="/search">
+            <input type="hidden" name="connection" value="${currentConnection}">
+            <input type="hidden" name="index" value="${currentIndex}">
+            
+            <div class="input-group mb-3">
+                <input type="text" class="form-control form-control-lg"
+                       name="q" value="${query}" placeholder="Search ${currentIndex}...">
+                <button class="btn btn-primary" type="submit">
+                    <i class="fas fa-search"></i> Search
+                </button>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <select name="size" class="form-select">
+                        <option value="10" ${size === 10 ? 'selected' : ''}>10 results</option>
+                        <option value="25" ${size === 25 ? 'selected' : ''}>25 results</option>
+                        <option value="50" ${size === 50 ? 'selected' : ''}>50 results</option>
+                        <option value="100" ${size === 100 ? 'selected' : ''}>100 results</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <button type="submit" class="btn btn-outline-primary">Update Results</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+${result.success ? `
+<!-- Results Summary -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5>Found ${result.total.toLocaleString()} results in <code>${currentIndex}</code></h5>
+            ${totalPages > 1 ? `
+            <nav>
+                <ul class="pagination mb-0">
+                    ${page > 1 ? `<li class="page-item">
+                        <a class="page-link" href="/search?q=${encodeURIComponent(query)}&size=${size}&page=${page-1}&index=${currentIndex}&connection=${currentConnection}">
+                            Previous
+                        </a>
+                    </li>` : ''}
+                    ${Array.from({length: Math.min(5, totalPages)}, (_, i) => {
+                        const pageNum = Math.max(1, page - 2) + i;
+                        if (pageNum <= totalPages) {
+                            return `<li class="page-item ${pageNum === page ? 'active' : ''}">
+                                <a class="page-link" href="/search?q=${encodeURIComponent(query)}&size=${size}&page=${pageNum}&index=${currentIndex}&connection=${currentConnection}">
+                                    ${pageNum}
+                                </a>
+                            </li>`;
+                        }
+                        return '';
+                    }).join('')}
+                    ${page < totalPages ? `<li class="page-item">
+                        <a class="page-link" href="/search?q=${encodeURIComponent(query)}&size=${size}&page=${page+1}&index=${currentIndex}&connection=${currentConnection}">
+                            Next
+                        </a>
+                    </li>` : ''}
+                </ul>
+            </nav>
+            ` : ''}
+        </div>
+    </div>
+</div>
+
+<!-- Search Results -->
+${result.data && result.data.length > 0 ? `
+<div class="row">
+    <div class="col-12">
+        ${result.data.map((hit, index) => `
+        <div class="card mb-3 result-item">
+            <div class="card-header d-flex justify-content-between">
+                <strong>Document ID: ${hit._id}</strong>
+                <span class="badge bg-primary">Score: ${hit._score}</span>
+            </div>
+            <div class="card-body">
+                <div class="json-viewer">
+                    <pre><code class="language-json">${JSON.stringify(hit._source, null, 2)}</code></pre>
+                </div>
+            </div>
+        </div>
+        `).join('')}
+    </div>
+</div>
+` : '<div class="alert alert-info">No documents found matching your search.</div>'}
+
+` : `
+<div class="alert alert-danger">
+    <strong>Error:</strong> ${result.error}
+</div>
+`}
+` : `
+<div class="alert alert-warning">
+    <i class="fas fa-info-circle"></i> 
+    Please select a connection and index to start searching.
+</div>
+`}
+
+<script>
+// Load indices when connection changes
+if (document.getElementById('connectionSelect').value) {
+    loadIndicesForConnection(document.getElementById('connectionSelect').value, 'indexSelect');
+}
+</script>
+`;
+%>
+<%- include('layout', { body: searchBody, title: 'Search - ES Dashboard' }) %>
+

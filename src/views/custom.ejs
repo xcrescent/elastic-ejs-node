@@ -1,0 +1,217 @@
+<!-- views/custom.ejs -->
+<%
+const customBody = `
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-code text-primary"></i> 
+            Custom Elasticsearch Query
+        </h1>
+    </div>
+</div>
+
+<!-- Connection and Index Selector -->
+<div class="connection-selector">
+    <form method="GET" action="/custom">
+        <div class="row align-items-end">
+            <div class="col-md-4">
+                <label for="connectionSelect" class="form-label">Connection:</label>
+                <select name="connection" id="connectionSelect" class="form-select" onchange="loadIndicesForConnection(this.value, 'indexSelect')">
+                    <option value="">Select connection...</option>
+                    ${Object.entries(connections).map(([id, conn]) => `
+                        <option value="${id}" ${currentConnection === id ? 'selected' : ''}>
+                            ${conn.name}
+                        </option>
+                    `).join('')}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="indexSelect" class="form-label">Index:</label>
+                <select name="index" id="indexSelect" class="form-select">
+                    <option value="">Select index...</option>
+                    ${currentIndex ? `<option value="${currentIndex}" selected>${currentIndex}</option>` : ''}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-outline-primary">
+                    <i class="fas fa-sync"></i> Update
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+${currentConnection && currentIndex ? `
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-edit"></i> Query Builder</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/custom">
+                    <input type="hidden" name="connection" value="${currentConnection}">
+                    <input type="hidden" name="index" value="${currentIndex}">
+                    
+                    <div class="mb-3">
+                        <label for="query" class="form-label">
+                            Elasticsearch Query Body (JSON) for <code>${currentIndex}</code>
+                        </label>
+                        <textarea name="query" id="query" class="form-control" rows="15" placeholder="Enter your Elasticsearch query...">
+${query ? query : `{
+  "query": {
+    "match_all": {}
+  },
+  "size": 10
+}`}
+                        </textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-play"></i> Execute Query
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-book"></i> Query Examples</h5>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="examplesAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example1">
+                                Match Query
+                            </button>
+                        </h2>
+                        <div id="example1" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                            <div class="accordion-body">
+                                <pre><code class="language-json">{
+  "query": {
+    "match": {
+      "field_name": "search_value"
+    }
+  },
+  "size": 10
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example2">
+                                Range Query
+                            </button>
+                        </h2>
+                        <div id="example2" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                            <div class="accordion-body">
+                                <pre><code class="language-json">{
+  "query": {
+    "range": {
+      "timestamp": {
+        "gte": "2024-01-01",
+        "lte": "2024-12-31"
+      }
+    }
+  },
+  "size": 10
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#example3">
+                                Aggregation
+                            </button>
+                        </h2>
+                        <div id="example3" class="accordion-collapse collapse" data-bs-parent="#examplesAccordion">
+                            <div class="accordion-body">
+                                <pre><code class="language-json">{
+  "size": 0,
+  "aggs": {
+    "my_aggregation": {
+      "terms": {
+        "field": "category.keyword",
+        "size": 10
+      }
+    }
+  }
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+${result ? `
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    ${result.success ? '<i class="fas fa-check-circle text-success"></i> Query Results' : '<i class="fas fa-exclamation-triangle text-danger"></i> Query Error'}
+                </h5>
+            </div>
+            <div class="card-body">
+                ${result.success ? `
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Total Results:</strong> ${result.total.toLocaleString()}
+                        </div>
+                        ${result.aggregations ? `
+                        <div class="col-md-6">
+                            <strong>Aggregations:</strong> ${Object.keys(result.aggregations).length} found
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    ${result.aggregations ? `
+                    <div class="mb-4">
+                        <h6><i class="fas fa-chart-bar"></i> Aggregations:</h6>
+                        <div class="json-viewer">
+                            <pre><code class="language-json">${JSON.stringify(result.aggregations, null, 2)}</code></pre>
+                        </div>
+                    </div>
+                    ` : ''}
+                    
+                    ${result.data && result.data.length > 0 ? `
+                    <div>
+                        <h6><i class="fas fa-file-alt"></i> Documents:</h6>
+                        <div class="json-viewer">
+                            <pre><code class="language-json">${JSON.stringify(result.data, null, 2)}</code></pre>
+                        </div>
+                    </div>
+                    ` : ''}
+                ` : `
+                    <div class="alert alert-danger">
+                        <strong>Error:</strong> ${result.error}
+                    </div>
+                `}
+            </div>
+        </div>
+    </div>
+</div>
+` : ''}
+` : `
+<div class="alert alert-warning">
+    <i class="fas fa-info-circle"></i> 
+    Please select a connection and index to build custom queries.
+</div>
+`}
+
+<script>
+// Load indices when connection changes
+if (document.getElementById('connectionSelect').value) {
+    loadIndicesForConnection(document.getElementById('connectionSelect').value, 'indexSelect');
+}
+</script>
+`;
+%>
+<%- include('layout', { body: customBody, title: 'Custom Query - ES Dashboard' }) %>
