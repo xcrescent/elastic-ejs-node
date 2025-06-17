@@ -151,13 +151,24 @@ class RideLocationHistoryFetcher {
         console.log(response);
         const hits = response.body ? response.body.hits.hits : response.hits.hits;
         const totalHits = response.hits.total.value;
+        let highAccuracyCount = 0;
+        let lowAccuracyCount = 0;
 
         for (const hit of hits) {
             // console.log(hit._source);
             console.log(hit._source.currentLocation);
             // IST
             console.log(moment.unix(hit._source.createdAt._seconds).format('YYYY-MM-DD HH:mm:ss'));
+
+            if (hit._source.currentLocation.accuracy < 100) {
+                highAccuracyCount++;
+            } else {
+                lowAccuracyCount++;
+            }
         }
+
+        console.log(`High accuracy locations: ${highAccuracyCount}`);
+        console.log(`Low accuracy locations: ${lowAccuracyCount}`);
 
         const locations = hits.map(hit => ({
             id: hit._id,
