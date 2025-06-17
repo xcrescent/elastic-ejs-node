@@ -1,5 +1,6 @@
 const {Client} = require("@elastic/elasticsearch");
 const moment = require('moment');
+const polyline = require('@mapbox/polyline');
 const client = new Client({
     cloud: { id: process.env.ELASTIC_CLOUD_ID},
     auth: {
@@ -153,23 +154,39 @@ class RideLocationHistoryFetcher {
         const totalHits = response.hits.total.value;
         let highAccuracyCount = 0;
         let lowAccuracyCount = 0;
-
+        let highAccuracyLocationHistory = [];
+        let highAccuracyDistance = 0;
         for (const hit of hits) {
             // console.log(hit._source);
             console.log(hit._source.currentLocation);
             // IST
             console.log(moment.unix(hit._source.createdAt._seconds).format('YYYY-MM-DD HH:mm:ss'));
 
-            if (hit._source.currentLocation.accuracy < 100) {
+            if (hit._source.currentLocation.accuracy < 500) {
                 highAccuracyCount++;
+                highAccuracyLocationHistory.push(hit._source);
+                // Calculate distance for high accuracy locations
+                if (hit._source.currentLocation.lat && hit._source.currentLocation.lng) {
+                    if (highAccuracyLocationHistory.length > 1) {
+                        const lastEntry = highAccuracyLocationHistory[highAccuracyLocationHistory.length - 2];
+                        highAccuracyDistance += RideLocationHistoryFetcher.calculateDistance(
+                            lastEntry.currentLocation.lat, lastEntry.currentLocation.lng,
+                            hit._source.currentLocation.lat, hit._source.currentLocation.lng
+                        );
+                    }
+                }
             } else {
                 lowAccuracyCount++;
             }
         }
-
+        console.log(`Total records found: ${totalHits}`);
+        console.log(`Total records returned: ${hits.length}`);
         console.log(`High accuracy locations: ${highAccuracyCount}`);
         console.log(`Low accuracy locations: ${lowAccuracyCount}`);
-
+        console.log(`Distance traveled: ${response.aggregations ? response.aggregations.distance_traveled.value : 'N/A'} km`);
+        console.log(`High accuracy distance: ${highAccuracyDistance.toFixed(2)} km`);
+        const highAccuracyPolyline = this.generatePolylineFromLocations(highAccuracyLocationHistory);
+        console.log(`High accuracy polyline: ${highAccuracyPolyline}`);
         const locations = hits.map(hit => ({
             id: hit._id,
             rideId: hit._source.rideId,
@@ -184,6 +201,9 @@ class RideLocationHistoryFetcher {
             assignedRouteId: hit._source.assignedRouteId,
             redirectRouteStarted: hit._source.redirectRouteStarted
         }));
+
+        const polyline = this.generatePolylineFromLocations(locations);
+        console.log(`Generated polyline: ${polyline}`);
 
         const result = {
             driverId,
@@ -204,6 +224,14 @@ class RideLocationHistoryFetcher {
         return result;
     }
 
+    generatePolylineFromLocations(locationHistory) {
+        // Sort by timestamp to ensure correct order
+        const sortedLocations = locationHistory
+            .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+            .map(location => [location.currentLocation.lat, location.currentLocation.lng]);
+
+        return polyline.encode(sortedLocations, 5); // 5 is the precision level
+    }
     /**
      * Helper method to calculate distance between two points (Haversine formula)
      */
