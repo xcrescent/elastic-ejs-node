@@ -406,6 +406,9 @@ router.post('/api/search', async (req, res) => {
       case 'last7d':
         result = await fetcher.getRecentRideLocationHistory(driverId, 168, options);
         break;
+      case 'last30d':
+        result = await fetcher.getRecentRideLocationHistory(driverId, 720, options);
+        break;
       case 'custom':
         if (!customStart || !customEnd) {
           return res.status(400).json({ error: 'Custom date range requires both start and end dates' });
