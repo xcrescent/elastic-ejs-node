@@ -3,128 +3,467 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= title %></title>
+    <title>Advanced Trip Analysis Dashboard</title>
+
+    <!-- Stylesheets -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/notyf/3.10.0/notyf.min.css" rel="stylesheet">
+
     <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --info-color: #17a2b8;
+            --dark-color: #343a40;
+            --light-color: #f8f9fa;
+        }
+
         body {
-            background-color: #f8f9fa;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
         }
+
         .dashboard-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             color: white;
-            padding: 2rem 0;
+            padding: 1.5rem 0;
             margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
+
         .stat-card {
             border: none;
             border-radius: 15px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            background: white;
+            overflow: hidden;
+            position: relative;
         }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+        }
+
         .stat-card:hover {
-            transform: translateY(-2px);
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
         }
+
         .stat-icon {
-            font-size: 2.5rem;
+            font-size: 2rem;
             opacity: 0.8;
+            margin-bottom: 0.5rem;
         }
-        #map {
-            height: 500px;
-            border-radius: 15px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+        .card-animate {
+            animation: slideInUp 0.6s ease;
         }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
         .search-form {
             background: white;
             padding: 2rem;
-            border-radius: 15px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             margin-bottom: 2rem;
+            border: 1px solid rgba(0, 0, 0, 0.05);
         }
+
+        .form-control, .form-select {
+            border-radius: 10px;
+            border: 1px solid #e1e5e9;
+            padding: 0.6rem 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus, .form-select:focus {
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+            border-color: var(--primary-color);
+        }
+
+        .btn {
+            border-radius: 10px;
+            padding: 0.6rem 1.5rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            border: none;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        #map {
+            height: 500px;
+            border-radius: 15px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
         .results-table {
             background: white;
             border-radius: 15px;
             overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
-        .loading {
+
+        .table {
+            margin-bottom: 0;
+        }
+
+        .table thead th {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            font-weight: 600;
+            padding: 1rem;
+        }
+
+        .table tbody td {
+            padding: 1rem;
+            vertical-align: middle;
+            border-bottom: 1px solid #f1f3f4;
+        }
+
+        .table tbody tr:hover {
+            background-color: #f8f9fa;
+            transition: all 0.3s ease;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
             display: none;
+            z-index: 9999;
+            backdrop-filter: blur(5px);
+        }
+
+        .loading-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             text-align: center;
-            padding: 2rem;
         }
-        .spinner-border {
-            width: 3rem;
-            height: 3rem;
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
         }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         .timeline-item {
-            border-left: 3px solid #007bff;
+            border-left: 3px solid var(--primary-color);
             padding-left: 1rem;
             margin-bottom: 1rem;
             padding-bottom: 1rem;
+            position: relative;
         }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -6px;
+            top: 0;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--primary-color);
+        }
+
         .status-badge {
             font-size: 0.8rem;
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-weight: 500;
         }
-        .custom-date-range {
-            display: none;
-        }
-        .error-alert {
-            display: none;
-        }
+
         .trip-card {
             border: none;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 15px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             margin-bottom: 1rem;
+            transition: all 0.3s ease;
+            background: white;
         }
-        .filter-info {
-            font-size: 0.875rem;
-            color: #6c757d;
-            margin-top: 0.25rem;
+
+        .trip-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
+
         .price-display {
             font-size: 1.2rem;
             font-weight: bold;
-            color: #28a745;
+            color: var(--success-color);
         }
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
+
+        .quick-search-dropdown {
+            max-height: 300px;
+            overflow-y: auto;
+            border-radius: 10px;
+            border: 1px solid #e1e5e9;
         }
+
         .quick-search-item {
             cursor: pointer;
             transition: background-color 0.2s;
+            padding: 0.8rem;
         }
+
         .quick-search-item:hover {
             background-color: #f8f9fa;
         }
-        .cursor-pointer {
-            cursor: pointer;
+
+        .live-indicator {
+            position: relative;
+            overflow: hidden;
         }
-        .gap-3 {
-            gap: 1rem;
+
+        .live-indicator::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+        }
+
+        .filter-chip {
+            display: inline-block;
+            background: var(--light-color);
+            border: 1px solid #dee2e6;
+            border-radius: 20px;
+            padding: 0.4rem 0.8rem;
+            margin: 0.2rem;
+            font-size: 0.85rem;
+            color: var(--dark-color);
+        }
+
+        .filter-chip.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .metric-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1rem;
+        }
+
+        .metric-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .export-options {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            min-width: 150px;
+            z-index: 1000;
+        }
+
+        .export-option {
+            padding: 0.8rem 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border-bottom: 1px solid #f1f3f4;
+        }
+
+        .export-option:hover {
+            background-color: #f8f9fa;
+        }
+
+        .export-option:last-child {
+            border-bottom: none;
+        }
+
+        .advanced-filters {
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .floating-action-btn {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        .floating-action-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-header {
+                padding: 1rem 0;
+            }
+
+            .search-form {
+                padding: 1rem;
+            }
+
+            #map {
+                height: 300px;
+            }
+
+            .stat-card {
+                margin-bottom: 1rem;
+            }
+        }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                color: #ffffff;
+            }
+
+            .search-form, .stat-card, .trip-card, .results-table {
+                background: #2d3748;
+                color: #ffffff;
+            }
+
+            .form-control, .form-select {
+                background: #4a5568;
+                border-color: #5a6578;
+                color: #ffffff;
+            }
         }
     </style>
 </head>
 <body>
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-content">
+        <div class="spinner"></div>
+        <h5>Processing your request...</h5>
+        <p class="text-muted">Analyzing trip data</p>
+    </div>
+</div>
+
 <!-- Header -->
 <div class="dashboard-header">
     <div class="container">
         <div class="row align-items-center">
             <div class="col-md-6">
-                <h1><i class="fas fa-chart-line me-3"></i><%= title %></h1>
-                <p class="mb-0">Comprehensive trip data analysis and visualization</p>
+                <h1><i class="fas fa-chart-line me-3"></i>Advanced Trip Analysis</h1>
+                <p class="mb-0">Real-time insights and comprehensive analytics</p>
             </div>
             <div class="col-md-6 text-end">
-                <div class="d-flex justify-content-end align-items-center gap-3">
+                <div class="d-flex justify-content-end align-items-center gap-3 flex-wrap">
                     <button id="liveToggle" class="btn btn-success btn-sm" onclick="toggleLiveMonitoring()">
                         <i class="fas fa-play me-2"></i>Start Live
                     </button>
-                    <button class="btn btn-outline-light btn-sm" onclick="exportTrips()">
-                        <i class="fas fa-download me-2"></i>Export
+                    <div class="position-relative">
+                        <button class="btn btn-outline-light btn-sm" onclick="toggleExportOptions()">
+                            <i class="fas fa-download me-2"></i>Export
+                        </button>
+                        <div class="export-options" id="exportOptions">
+                            <div class="export-option" onclick="exportData('csv')">
+                                <i class="fas fa-file-csv me-2"></i>CSV
+                            </div>
+                            <div class="export-option" onclick="exportData('json')">
+                                <i class="fas fa-file-code me-2"></i>JSON
+                            </div>
+                            <div class="export-option" onclick="exportData('xlsx')">
+                                <i class="fas fa-file-excel me-2"></i>Excel
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-outline-light btn-sm" onclick="toggleAdvancedFilters()">
+                        <i class="fas fa-filter me-2"></i>Filters
                     </button>
                     <div class="d-flex align-items-center">
                         <i class="fas fa-clock me-2"></i>
@@ -138,44 +477,49 @@
 
 <div class="container-fluid">
     <!-- Search Form -->
-    <div class="search-form">
+    <div class="search-form card-animate">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h3><i class="fas fa-search me-2"></i>Search Trip Data</h3>
+            <h3><i class="fas fa-search me-2"></i>Trip Search & Analytics</h3>
             <div class="d-flex align-items-center gap-3">
                 <div class="position-relative">
-                    <input type="text" class="form-control" id="quickSearch" placeholder="Quick search trips..." style="width: 250px;">
+                    <input type="text" class="form-control" id="quickSearch" placeholder="Quick search trips..." style="width: 300px;">
+                    <div class="position-absolute top-100 start-0 w-100 quick-search-dropdown bg-white shadow-sm mt-1" id="quickSearchDropdown" style="display: none; z-index: 1000;"></div>
                     <small class="text-muted">Ctrl + / to focus</small>
                 </div>
-                <div id="liveIndicator" class="badge bg-success" style="display: none;">
-                    <i class="fas fa-circle me-1" style="animation: pulse 1s infinite;"></i>Live
+                <div id="liveIndicator" class="badge bg-success live-indicator" style="display: none;">
+                    <i class="fas fa-circle me-1"></i>Live
                 </div>
             </div>
         </div>
+
+        <!-- Active Filters Display -->
+        <div id="activeFilters" class="mb-3" style="display: none;">
+            <small class="text-muted me-2">Active Filters:</small>
+            <div id="filterChips" class="d-inline"></div>
+            <button class="btn btn-outline-secondary btn-sm ms-2" onclick="clearAllFilters()">
+                <i class="fas fa-times"></i> Clear All
+            </button>
+        </div>
+
         <form id="searchForm">
-            <div class="row">
+            <div class="row g-3">
                 <div class="col-md-2">
-                    <label class="form-label">Trip ID</label>
+                    <label class="form-label fw-bold">Trip ID</label>
                     <input type="text" class="form-control" id="tripId" placeholder="Enter trip ID">
-                    <div class="filter-info">
-                        <small>Exact trip identifier</small>
-                    </div>
+                    <small class="text-muted">Exact trip identifier</small>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Driver ID</label>
+                    <label class="form-label fw-bold">Driver ID</label>
                     <input type="text" class="form-control" id="driverId" placeholder="Driver ID">
-                    <div class="filter-info">
-                        <small>Filter by driver</small>
-                    </div>
+                    <small class="text-muted">Filter by driver</small>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Rider Phone</label>
+                    <label class="form-label fw-bold">Rider Phone</label>
                     <input type="text" class="form-control" id="riderPhone" placeholder="Rider phone">
-                    <div class="filter-info">
-                        <small>Customer contact number</small>
-                    </div>
+                    <small class="text-muted">Customer contact</small>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Trip Status</label>
+                    <label class="form-label fw-bold">Trip Status</label>
                     <select class="form-select" id="tripStatus">
                         <option value="">All Status</option>
                         <option value="completed">Completed</option>
@@ -186,7 +530,7 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Payment Status</label>
+                    <label class="form-label fw-bold">Payment Status</label>
                     <select class="form-select" id="paymentStatus">
                         <option value="">All Payments</option>
                         <option value="paid">Paid</option>
@@ -196,7 +540,7 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Ride Type</label>
+                    <label class="form-label fw-bold">Ride Type</label>
                     <select class="form-select" id="rideType">
                         <option value="">All Types</option>
                         <option value="shared">Shared</option>
@@ -207,9 +551,9 @@
                 </div>
             </div>
 
-            <div class="row mt-3">
+            <div class="row g-3 mt-2">
                 <div class="col-md-2">
-                    <label class="form-label">Time Range</label>
+                    <label class="form-label fw-bold">Time Range</label>
                     <select class="form-select" id="timeRange">
                         <option value="today">Today</option>
                         <option value="yesterday">Yesterday</option>
@@ -219,30 +563,30 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Price Range</label>
-                    <div class="d-flex">
-                        <input type="number" class="form-control me-1" id="minPrice" placeholder="Min ₹">
+                    <label class="form-label fw-bold">Price Range</label>
+                    <div class="d-flex gap-1">
+                        <input type="number" class="form-control" id="minPrice" placeholder="Min ₹">
                         <input type="number" class="form-control" id="maxPrice" placeholder="Max ₹">
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Record Limit</label>
+                    <label class="form-label fw-bold">Record Limit</label>
                     <select class="form-select" id="recordLimit">
                         <option value="50">50</option>
                         <option value="100" selected>100</option>
                         <option value="500">500</option>
                         <option value="1000">1000</option>
                         <option value="2000">2000</option>
-                        <option value="all">All</option>
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Sort By</label>
+                    <label class="form-label fw-bold">Sort By</label>
                     <select class="form-select" id="sortBy">
                         <option value="createdAt">Created Time</option>
                         <option value="startTime">Start Time</option>
                         <option value="endTime">End Time</option>
                         <option value="price">Price</option>
+                        <option value="distance">Distance</option>
                     </select>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
@@ -257,109 +601,150 @@
                 </div>
             </div>
 
+            <!-- Advanced Filters -->
+            <div class="advanced-filters mt-3" id="advancedFilters">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Distance Range (km)</label>
+                        <div class="d-flex gap-1">
+                            <input type="number" class="form-control" id="minDistance" placeholder="Min">
+                            <input type="number" class="form-control" id="maxDistance" placeholder="Max">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Rating Range</label>
+                        <div class="d-flex gap-1">
+                            <input type="number" class="form-control" id="minRating" placeholder="Min" min="1" max="5" step="0.1">
+                            <input type="number" class="form-control" id="maxRating" placeholder="Max" min="1" max="5" step="0.1">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Vehicle Type</label>
+                        <select class="form-select" id="vehicleType">
+                            <option value="">All Vehicles</option>
+                            <option value="car">Car</option>
+                            <option value="bike">Bike</option>
+                            <option value="auto">Auto</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Booking Type</label>
+                        <select class="form-select" id="bookingType">
+                            <option value="">All Bookings</option>
+                            <option value="direct">Direct</option>
+                            <option value="proxy">Proxy Booking</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
             <!-- Custom Date Range -->
-            <div class="row mt-3 custom-date-range" id="customDateRange">
+            <div class="row g-3 mt-2" id="customDateRange" style="display: none;">
                 <div class="col-md-3">
-                    <label class="form-label">Start Date</label>
+                    <label class="form-label fw-bold">Start Date</label>
                     <input type="datetime-local" class="form-control" id="customStart">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">End Date</label>
+                    <label class="form-label fw-bold">End Date</label>
                     <input type="datetime-local" class="form-control" id="customEnd">
                 </div>
             </div>
         </form>
     </div>
 
-    <!-- Status Legend -->
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body py-2">
-                    <small class="text-muted">
-                        <strong>Trip Status:</strong>
-                        <span class="badge bg-success me-2">Completed</span>
-                        <span class="badge bg-danger me-2">Cancelled</span>
-                        <span class="badge bg-primary me-2">Ongoing</span>
-                        <span class="badge bg-warning me-2">Scheduled</span>
-                        <span class="badge bg-info me-2">Assigned</span>
-                    </small>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Error Alert -->
-    <div class="alert alert-danger error-alert" id="errorAlert">
+    <div class="alert alert-danger" id="errorAlert" style="display: none;">
         <i class="fas fa-exclamation-triangle me-2"></i>
         <span id="errorMessage"></span>
-    </div>
-
-    <!-- Loading -->
-    <div class="loading" id="loading">
-        <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
-        </div>
-        <p class="mt-3">Fetching trip data...</p>
     </div>
 
     <!-- Results Section -->
     <div id="resultsSection" style="display: none;">
         <!-- Statistics Cards -->
         <div class="row mb-4">
-            <div class="col-md-3 mb-3">
-                <div class="card stat-card text-center h-100">
-                    <div class="card-body">
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="stat-card card-animate">
+                    <div class="card-body text-center">
                         <i class="fas fa-route stat-icon text-primary"></i>
-                        <h3 class="mt-3 mb-1" id="totalTrips">0</h3>
+                        <h3 class="mt-2 mb-1" id="totalTrips">0</h3>
                         <p class="text-muted mb-0">Total Trips</p>
+                        <small class="text-success" id="tripsTrend">↑ 12% from last week</small>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 mb-3">
-                <div class="card stat-card text-center h-100">
-                    <div class="card-body">
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="stat-card card-animate">
+                    <div class="card-body text-center">
                         <i class="fas fa-rupee-sign stat-icon text-success"></i>
-                        <h3 class="mt-3 mb-1" id="totalRevenue">₹0</h3>
+                        <h3 class="mt-2 mb-1" id="totalRevenue">₹0</h3>
                         <p class="text-muted mb-0">Total Revenue</p>
+                        <small class="text-success" id="revenueTrend">↑ 8% from last week</small>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 mb-3">
-                <div class="card stat-card text-center h-100">
-                    <div class="card-body">
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="stat-card card-animate">
+                    <div class="card-body text-center">
                         <i class="fas fa-check-circle stat-icon text-success"></i>
-                        <h3 class="mt-3 mb-1" id="completedTrips">0</h3>
+                        <h3 class="mt-2 mb-1" id="completedTrips">0</h3>
                         <p class="text-muted mb-0">Completed</p>
+                        <small class="text-info" id="completionRate">85% completion rate</small>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 mb-3">
-                <div class="card stat-card text-center h-100">
-                    <div class="card-body">
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="stat-card card-animate">
+                    <div class="card-body text-center">
                         <i class="fas fa-times-circle stat-icon text-danger"></i>
-                        <h3 class="mt-3 mb-1" id="cancelledTrips">0</h3>
+                        <h3 class="mt-2 mb-1" id="cancelledTrips">0</h3>
                         <p class="text-muted mb-0">Cancelled</p>
+                        <small class="text-danger" id="cancellationRate">15% cancellation rate</small>
                     </div>
                 </div>
             </div>
         </div>
 
+        <!-- Charts and Analytics -->
+        <div class="row mb-4">
+            <div class="col-lg-8 mb-4">
+                <div class="chart-container">
+                    <h5><i class="fas fa-chart-bar me-2"></i>Trip Trends</h5>
+                    <canvas id="trendsChart" height="100"></canvas>
+                </div>
+            </div>
+            <div class="col-lg-4 mb-4">
+                <div class="chart-container">
+                    <h5><i class="fas fa-chart-pie me-2"></i>Status Distribution</h5>
+                    <canvas id="statusChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+
         <!-- Map and Trip Details -->
-        <div class="row">
-            <div class="col-md-8 mb-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-map-marked-alt me-2"></i>Trip Routes Map</h5>
+        <div class="row mb-4">
+            <div class="col-lg-8 mb-4">
+                <div class="card card-animate">
+                    <div class="card-header bg-transparent">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="fas fa-map-marked-alt me-2"></i>Trip Routes Map</h5>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="fitMapToData()">
+                                    <i class="fas fa-compress-arrows-alt"></i> Fit All
+                                </button>
+                                <button class="btn btn-outline-primary" onclick="toggleHeatmap()">
+                                    <i class="fas fa-fire"></i> Heatmap
+                                </button>
+                            </div>
+                        </div>
                     </div>
                     <div class="card-body p-0">
                         <div id="map"></div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-header">
+            <div class="col-lg-4 mb-4">
+                <div class="card card-animate h-100">
+                    <div class="card-header bg-transparent">
                         <h5 class="mb-0"><i class="fas fa-list me-2"></i>Recent Trips</h5>
                     </div>
                     <div class="card-body" style="max-height: 500px; overflow-y: auto;">
@@ -369,24 +754,66 @@
             </div>
         </div>
 
+        <!-- Advanced Analytics -->
+        <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="metric-card">
+                    <div class="metric-value text-primary" id="avgPrice">₹0</div>
+                    <div class="metric-label">Average Price</div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="metric-card">
+                    <div class="metric-value text-info" id="avgDistance">0 km</div>
+                    <div class="metric-label">Average Distance</div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="metric-card">
+                    <div class="metric-value text-warning" id="avgRating">0.0</div>
+                    <div class="metric-label">Average Rating</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Trip Data Table -->
-        <div class="results-table">
+        <div class="results-table card-animate">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-table me-2"></i>Trip Details</h5>
+                <div class="card-header bg-transparent">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-table me-2"></i>Trip Details</h5>
+                        <div class="d-flex gap-2">
+                            <input type="text" class="form-control form-control-sm" id="tableSearch" placeholder="Search in table..." style="width: 200px;">
+                            <button class="btn btn-outline-primary btn-sm" onclick="toggleTableView()">
+                                <i class="fas fa-th-list"></i> Toggle View
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover mb-0">
-                            <thead class="table-dark">
+                            <thead>
                             <tr>
-                                <th>Trip ID</th>
-                                <th>Driver</th>
-                                <th>Rider</th>
+                                <th onclick="sortTable('tripId')" class="cursor-pointer">
+                                    Trip ID <i class="fas fa-sort"></i>
+                                </th>
+                                <th onclick="sortTable('driver')" class="cursor-pointer">
+                                    Driver <i class="fas fa-sort"></i>
+                                </th>
+                                <th onclick="sortTable('rider')" class="cursor-pointer">
+                                    Rider <i class="fas fa-sort"></i>
+                                </th>
                                 <th>Route</th>
-                                <th>Status</th>
-                                <th>Price</th>
-                                <th>Time</th>
+                                <th onclick="sortTable('status')" class="cursor-pointer">
+                                    Status <i class="fas fa-sort"></i>
+                                </th>
+                                <th onclick="sortTable('price')" class="cursor-pointer">
+                                    Price <i class="fas fa-sort"></i>
+                                </th>
+                                <th onclick="sortTable('time')" class="cursor-pointer">
+                                    Time <i class="fas fa-sort"></i>
+                                </th>
                                 <th>Actions</th>
                             </tr>
                             </thead>
@@ -397,19 +824,43 @@
                 </div>
             </div>
         </div>
+
+        <!-- Pagination -->
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="text-muted">
+                Showing <span id="showingFrom">0</span> to <span id="showingTo">0</span> of <span id="totalResults">0</span> results
+            </div>
+            <nav>
+                <ul class="pagination pagination-sm mb-0" id="pagination">
+                </ul>
+            </nav>
+        </div>
     </div>
 </div>
 
+<!-- Floating Action Button -->
+<button class="floating-action-btn" onclick="scrollToTop()" title="Back to top">
+    <i class="fas fa-arrow-up"></i>
+</button>
+
 <!-- Trip Details Modal -->
 <div class="modal fade" id="tripDetailsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Trip Details</h5>
+                <h5 class="modal-title">
+                    <i class="fas fa-info-circle me-2"></i>Trip Details
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="tripDetailsContent">
                 <!-- Trip details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="printTripDetails()">
+                    <i class="fas fa-print me-2"></i>Print
+                </button>
             </div>
         </div>
     </div>
@@ -418,73 +869,204 @@
 <!-- Scripts -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/notyf/3.10.0/notyf.min.js"></script>
 
-<!-- Include all the JavaScript functions from the artifacts dashboard -->
 <script>
-    // All the JavaScript functions from the trips analysis dashboard go here
-    // This is the same JavaScript code from the previous artifact
-    let map;
-    let markers = [];
-    let routes = [];
+    // Enhanced JavaScript implementation with all features
+    let map, markers = [], routes = [], heatmapLayer;
+    let trendsChart, statusChart;
+    let currentData = null;
+    let liveMonitoringInterval = null;
+    let currentSort = { field: null, direction: 'asc' };
+    let tableView = 'detailed';
 
-    // Initialize the page
+    // Initialize notification system
+    const notyf = new Notyf({
+        duration: 4000,
+        position: { x: 'right', y: 'top' }
+    });
+
+    // Initialize the application
     document.addEventListener('DOMContentLoaded', function() {
+        initializeApp();
+        setupEventListeners();
+        setupKeyboardShortcuts();
+        initializeCharts();
+    });
+
+    function initializeApp() {
         updateTime();
         setInterval(updateTime, 1000);
         initializeMap();
-        setupEventListeners();
         setupQuickSearch();
+        loadDefaultData();
+    }
 
-        // Add keyboard shortcuts
+    function updateTime() {
+        const now = new Date();
+        document.getElementById('currentTime').textContent = now.toLocaleString('en-IN');
+    }
+
+    function initializeMap() {
+        map = L.map('map').setView([28.6139, 77.2090], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Add map controls
+        const legend = L.control({ position: 'bottomright' });
+        legend.onAdd = function(map) {
+            const div = L.DomUtil.create('div', 'info legend');
+            div.style.background = 'white';
+            div.style.padding = '10px';
+            div.style.borderRadius = '5px';
+            div.innerHTML = `
+                    <h6>Trip Status</h6>
+                    <i style="background: #28a745; width: 12px; height: 12px; display: inline-block; margin-right: 5px;"></i> Completed<br>
+                    <i style="background: #dc3545; width: 12px; height: 12px; display: inline-block; margin-right: 5px;"></i> Cancelled<br>
+                    <i style="background: #007bff; width: 12px; height: 12px; display: inline-block; margin-right: 5px;"></i> Ongoing<br>
+                    <i style="background: #ffc107; width: 12px; height: 12px; display: inline-block; margin-right: 5px;"></i> Scheduled
+                `;
+            return div;
+        };
+        legend.addTo(map);
+    }
+
+    function initializeCharts() {
+        // Initialize trends chart
+        const trendsCtx = document.getElementById('trendsChart').getContext('2d');
+        trendsChart = new Chart(trendsCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Daily Trips',
+                    data: [],
+                    borderColor: 'rgb(102, 126, 234)',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+
+        // Initialize status chart
+        const statusCtx = document.getElementById('statusChart').getContext('2d');
+        statusChart = new Chart(statusCtx, {
+            type: 'doughnut',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    backgroundColor: ['#28a745', '#dc3545', '#007bff', '#ffc107', '#17a2b8']
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+    }
+
+    function setupEventListeners() {
+        // Form submissions
+        document.getElementById('searchForm').addEventListener('submit', handleSearch);
+        document.getElementById('clearBtn').addEventListener('click', clearResults);
+
+        // Time range change
+        document.getElementById('timeRange').addEventListener('change', handleTimeRangeChange);
+
+        // Table search
+        document.getElementById('tableSearch').addEventListener('input', filterTable);
+
+        // Advanced filters toggle
+        const advancedInputs = document.querySelectorAll('#advancedFilters input, #advancedFilters select');
+        advancedInputs.forEach(input => {
+            input.addEventListener('change', updateActiveFilters);
+        });
+    }
+
+    function setupKeyboardShortcuts() {
         document.addEventListener('keydown', function(e) {
-            // Ctrl + / for quick search focus
+            // Ctrl + / for quick search
             if (e.ctrlKey && e.key === '/') {
                 e.preventDefault();
-                const quickSearch = document.getElementById('quickSearch');
-                if (quickSearch) quickSearch.focus();
+                document.getElementById('quickSearch').focus();
             }
 
             // Escape to clear search
             if (e.key === 'Escape') {
                 clearResults();
             }
-        });
-    });
 
-    function updateTime() {
-        const now = new Date();
-        document.getElementById('currentTime').textContent = now.toLocaleString();
-    }
-
-    function initializeMap() {
-        map = L.map('map').setView([28.6139, 77.2090], 10); // Default to Delhi
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-    }
-
-    function setupEventListeners() {
-        // Time range change
-        document.getElementById('timeRange').addEventListener('change', function() {
-            const customRange = document.getElementById('customDateRange');
-            if (this.value === 'custom') {
-                customRange.style.display = 'block';
-            } else {
-                customRange.style.display = 'none';
+            // F5 to refresh data
+            if (e.key === 'F5') {
+                e.preventDefault();
+                if (currentData) {
+                    refreshData();
+                }
             }
         });
-
-        // Form submission
-        document.getElementById('searchForm').addEventListener('submit', handleSearch);
-        document.getElementById('clearBtn').addEventListener('click', clearResults);
     }
 
     async function handleSearch(e) {
         e.preventDefault();
 
-        const formData = {
+        showLoading(true);
+        hideError();
+
+        try {
+            const formData = collectFormData();
+
+            if (formData.timeRange === 'custom' && (!formData.customStart || !formData.customEnd)) {
+                throw new Error('Please select both start and end dates for custom range');
+            }
+
+            const response = await fetch('/api/trips/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to fetch trip data');
+            }
+
+            const data = await response.json();
+            currentData = data;
+
+            displayResults(data);
+            updateActiveFilters();
+
+            notyf.success(`Found ${data.totalTrips} trips`);
+
+        } catch (error) {
+            showError(error.message);
+            notyf.error(error.message);
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    function collectFormData() {
+        return {
             tripId: document.getElementById('tripId').value.trim(),
+            rideId: document.getElementById('rideId')?.value.trim(),
             driverId: document.getElementById('driverId').value.trim(),
+            riderId: document.getElementById('riderId')?.value.trim(),
             riderPhone: document.getElementById('riderPhone').value.trim(),
             tripStatus: document.getElementById('tripStatus').value,
             paymentStatus: document.getElementById('paymentStatus').value,
@@ -495,66 +1077,73 @@
             minPrice: document.getElementById('minPrice').value,
             maxPrice: document.getElementById('maxPrice').value,
             recordLimit: document.getElementById('recordLimit').value,
-            sortBy: document.getElementById('sortBy').value
+            sortBy: document.getElementById('sortBy').value,
+            sortOrder: 'desc'
         };
-
-        if (formData.timeRange === 'custom' && (!formData.customStart || !formData.customEnd)) {
-            showError('Please select both start and end dates for custom range');
-            return;
-        }
-
-        showLoading(true);
-        hideError();
-
-        try {
-            const response = await fetch('/api/trips/search', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(formData)
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to fetch trip data');
-            }
-
-            displayResults(data);
-        } catch (error) {
-            showError(error.message);
-        } finally {
-            showLoading(false);
-        }
     }
 
     function displayResults(data) {
-        // Update statistics from API response
+        updateStatistics(data);
+        updateCharts(data);
+        updateMap(data.trips);
+        updateRecentTrips(data.trips.slice(0, 10));
+        updateTable(data.trips);
+        updatePagination(data);
+
+        document.getElementById('resultsSection').style.display = 'block';
+
+        // Smooth scroll to results
+        document.getElementById('resultsSection').scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+        });
+    }
+
+    function updateStatistics(data) {
+        const stats = data.analytics || {};
+
         document.getElementById('totalTrips').textContent = data.totalTrips.toLocaleString();
 
-        // Calculate total revenue from trips
-        const totalRevenue = data.trips.reduce((sum, trip) => sum + (trip.price || 0), 0);
+        const totalRevenue = stats.priceStats?.sum || 0;
         document.getElementById('totalRevenue').textContent = `₹${totalRevenue.toLocaleString()}`;
 
-        // Calculate completed and cancelled trips
-        const completedTrips = data.trips.filter(t => t.tripStatus === 'completed').length;
-        const cancelledTrips = data.trips.filter(t => t.tripStatus === 'cancelled').length;
+        const completed = stats.statusBreakdown?.completed || 0;
+        const cancelled = stats.statusBreakdown?.cancelled || 0;
 
-        document.getElementById('completedTrips').textContent = completedTrips.toLocaleString();
-        document.getElementById('cancelledTrips').textContent = cancelledTrips.toLocaleString();
+        document.getElementById('completedTrips').textContent = completed.toLocaleString();
+        document.getElementById('cancelledTrips').textContent = cancelled.toLocaleString();
 
-        // Update map
-        updateMap(data.trips);
+        // Update additional metrics
+        document.getElementById('avgPrice').textContent = `₹${(stats.priceStats?.avg || 0).toFixed(0)}`;
+        document.getElementById('avgDistance').textContent = `${(stats.distanceAnalytics?.avgDistance || 0).toFixed(1)} km`;
 
-        // Update recent trips
-        updateRecentTrips(data.trips.slice(0, 10));
+        // Calculate rates
+        const completionRate = data.totalTrips > 0 ? ((completed / data.totalTrips) * 100).toFixed(1) : 0;
+        const cancellationRate = data.totalTrips > 0 ? ((cancelled / data.totalTrips) * 100).toFixed(1) : 0;
 
-        // Update table
-        updateTable(data.trips);
+        document.getElementById('completionRate').textContent = `${completionRate}% completion rate`;
+        document.getElementById('cancellationRate').textContent = `${cancellationRate}% cancellation rate`;
+    }
 
-        // Show results section
-        document.getElementById('resultsSection').style.display = 'block';
+    function updateCharts(data) {
+        const analytics = data.analytics || {};
+
+        // Update trends chart
+        if (analytics.dailyTrends) {
+            trendsChart.data.labels = analytics.dailyTrends.map(d => d.date);
+            trendsChart.data.datasets[0].data = analytics.dailyTrends.map(d => d.count);
+            trendsChart.update();
+        }
+
+        // Update status chart
+        if (analytics.statusBreakdown) {
+            const statuses = Object.keys(analytics.statusBreakdown);
+            const counts = Object.values(analytics.statusBreakdown);
+
+            statusChart.data.labels = statuses;
+            statusChart.data.datasets[0].data = counts;
+            statusChart.update();
+        }
     }
 
     function updateMap(trips) {
@@ -567,53 +1156,75 @@
         if (trips.length === 0) return;
 
         const bounds = [];
+        const tripCounts = new Map();
 
         trips.forEach((trip, index) => {
-            if (trip.from && trip.from.coordinate && trip.to && trip.to.coordinate) {
+            if (trip.from?.coordinate && trip.to?.coordinate) {
                 const fromLat = trip.from.coordinate.lat;
                 const fromLng = trip.from.coordinate.lng;
                 const toLat = trip.to.coordinate.lat;
                 const toLng = trip.to.coordinate.lng;
 
-                // Only add valid coordinates
                 if (fromLat && fromLng && toLat && toLng) {
                     bounds.push([fromLat, fromLng], [toLat, toLng]);
 
-                    // Create pickup marker (green)
-                    const pickupMarker = L.marker([fromLat, fromLng], {
-                        icon: L.divIcon({
-                            className: 'custom-marker pickup-marker',
-                            html: '<i class="fas fa-map-marker-alt" style="color: #28a745; font-size: 20px;"></i>',
-                            iconSize: [20, 20]
-                        })
-                    }).bindPopup(`
-                        <strong>Pickup:</strong> ${trip.from.name || 'Unknown'}<br>
-                        <strong>Trip:</strong> ${trip.tripId}<br>
-                        <strong>Driver:</strong> ${trip.driver.name || 'N/A'}<br>
-                        <strong>Status:</strong> ${trip.tripStatus}<br>
-                        <strong>Created:</strong> ${trip.createdAt ? new Date(trip.createdAt._seconds * 1000).toLocaleString() : 'N/A'}
-                    `);
+                    // Count trips at each location for clustering
+                    const fromKey = `${fromLat.toFixed(4)},${fromLng.toFixed(4)}`;
+                    const toKey = `${toLat.toFixed(4)},${toLng.toFixed(4)}`;
 
-                    // Create dropoff marker (red)
-                    const dropoffMarker = L.marker([toLat, toLng], {
-                        icon: L.divIcon({
-                            className: 'custom-marker dropoff-marker',
-                            html: '<i class="fas fa-map-marker-alt" style="color: #dc3545; font-size: 20px;"></i>',
-                            iconSize: [20, 20]
-                        })
-                    }).bindPopup(`
-                        <strong>Dropoff:</strong> ${trip.to.name || 'Unknown'}<br>
-                        <strong>Trip:</strong> ${trip.tripId}<br>
-                        <strong>Price:</strong> ₹${trip.price || 0}<br>
-                        <strong>Rider:</strong> ${trip.rider.name || 'N/A'}
-                    `);
+                    tripCounts.set(fromKey, (tripCounts.get(fromKey) || 0) + 1);
+                    tripCounts.set(toKey, (tripCounts.get(toKey) || 0) + 1);
 
-                    // Create route line
+                    // Create markers with clustering
+                    const pickupSize = Math.min(Math.max(tripCounts.get(fromKey) * 2, 10), 30);
+                    const dropoffSize = Math.min(Math.max(tripCounts.get(toKey) * 2, 10), 30);
+
+                    const pickupMarker = L.circleMarker([fromLat, fromLng], {
+                        color: '#28a745',
+                        fillColor: '#28a745',
+                        fillOpacity: 0.7,
+                        radius: pickupSize / 2,
+                        weight: 2
+                    }).bindPopup(`
+                            <div class="popup-content">
+                                <strong>Pickup Location</strong><br>
+                                <strong>Address:</strong> ${trip.from.name || 'Unknown'}<br>
+                                <strong>Trip:</strong> ${trip.tripId}<br>
+                                <strong>Driver:</strong> ${trip.driver.name || 'N/A'}<br>
+                                <strong>Status:</strong> <span class="badge bg-${getStatusClass(trip.tripStatus)}">${trip.tripStatus}</span><br>
+                                <strong>Created:</strong> ${formatDateTime(trip.createdAt)}
+                            </div>
+                        `);
+
+                    const dropoffMarker = L.circleMarker([toLat, toLng], {
+                        color: '#dc3545',
+                        fillColor: '#dc3545',
+                        fillOpacity: 0.7,
+                        radius: dropoffSize / 2,
+                        weight: 2
+                    }).bindPopup(`
+                            <div class="popup-content">
+                                <strong>Dropoff Location</strong><br>
+                                <strong>Address:</strong> ${trip.to.name || 'Unknown'}<br>
+                                <strong>Trip:</strong> ${trip.tripId}<br>
+                                <strong>Price:</strong> ₹${trip.price || 0}<br>
+                                <strong>Rider:</strong> ${trip.rider.name || 'N/A'}
+                            </div>
+                        `);
+
+                    // Create route line with status-based color
                     const route = L.polyline([[fromLat, fromLng], [toLat, toLng]], {
                         color: getStatusColor(trip.tripStatus),
                         weight: 3,
-                        opacity: 0.7
-                    });
+                        opacity: 0.7,
+                        dashArray: trip.tripStatus === 'cancelled' ? '5, 5' : null
+                    }).bindPopup(`
+                            <div class="popup-content">
+                                <strong>Route:</strong> ${trip.from.name} → ${trip.to.name}<br>
+                                <strong>Distance:</strong> ${trip.calculatedDistanceInKm || trip.distance || 'N/A'} km<br>
+                                <strong>Status:</strong> ${trip.tripStatus}
+                            </div>
+                        `);
 
                     pickupMarker.addTo(map);
                     dropoffMarker.addTo(map);
@@ -626,13 +1237,143 @@
         });
 
         if (bounds.length > 0) {
-            map.fitBounds(bounds);
-        } else {
-            // Default view if no valid coordinates
-            map.setView([28.6139, 77.2090], 10);
+            map.fitBounds(bounds, { padding: [20, 20] });
         }
     }
 
+    function updateRecentTrips(trips) {
+        const container = document.getElementById('recentTrips');
+        container.innerHTML = '';
+
+        trips.forEach(trip => {
+            const tripCard = document.createElement('div');
+            tripCard.className = 'trip-card';
+            tripCard.innerHTML = `
+                    <div class="card-body p-3">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="mb-0 text-truncate" title="${trip.tripId}">${trip.tripId}</h6>
+                            <span class="badge bg-${getStatusClass(trip.tripStatus)} status-badge">${trip.tripStatus}</span>
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col-12">
+                                <small><strong>Driver:</strong> ${trip.driver.name || 'N/A'}</small>
+                            </div>
+                            <div class="col-12">
+                                <small><strong>Route:</strong></small>
+                                <div class="text-truncate" title="${trip.from.name || 'Unknown'} → ${trip.to.name || 'Unknown'}">
+                                    ${(trip.from.name || 'Unknown').substring(0, 15)}... → ${(trip.to.name || 'Unknown').substring(0, 15)}...
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">${formatDateTime(trip.createdAt)}</small>
+                            <span class="price-display">₹${trip.price || 0}</span>
+                        </div>
+                    </div>
+                `;
+
+            tripCard.addEventListener('click', () => showTripDetails(trip.tripId));
+            container.appendChild(tripCard);
+        });
+
+        if (trips.length === 0) {
+            container.innerHTML = '<p class="text-muted text-center p-3">No recent trips found</p>';
+        }
+    }
+
+    function updateTable(trips) {
+        const tbody = document.getElementById('tripsTableBody');
+        tbody.innerHTML = '';
+
+        trips.forEach((trip, index) => {
+            const row = document.createElement('tr');
+            row.className = 'table-row-animate';
+            row.innerHTML = `
+                    <td>
+                        <div class="fw-bold text-truncate" title="${trip.tripId}">${trip.tripId.substring(0, 12)}...</div>
+                        <small class="text-muted">${trip.rideId || 'N/A'}</small>
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <div>
+                                <div class="fw-semibold">${trip.driver.name || 'N/A'}</div>
+                                <small class="text-muted">${trip.driver.phone || 'N/A'}</small>
+                                <div>
+                                    <small class="badge bg-light text-dark">${trip.driver.vehicle?.number || 'N/A'}</small>
+                                    ${trip.driver.rating ? `<small class="text-warning ms-1">⭐ ${trip.driver.rating}</small>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="fw-semibold">${trip.rider.name || 'N/A'}</div>
+                        <small class="text-muted">${trip.rider.phone || 'N/A'}</small>
+                    </td>
+                    <td>
+                        <div class="route-info">
+                            <div class="text-truncate fw-semibold" title="${trip.from.name || 'Unknown'}">
+                                📍 ${(trip.from.name || 'Unknown').substring(0, 20)}...
+                            </div>
+                            <div class="text-truncate text-muted" title="${trip.to.name || 'Unknown'}">
+                                🏁 ${(trip.to.name || 'Unknown').substring(0, 20)}...
+                            </div>
+                            ${trip.calculatedDistanceInKm ? `<small class="text-info">${trip.calculatedDistanceInKm} km</small>` : ''}
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge bg-${getStatusClass(trip.tripStatus)} status-badge">${trip.tripStatus}</span>
+                        <br><small class="text-muted">${trip.paymentStatus || 'N/A'}</small>
+                    </td>
+                    <td>
+                        <div class="price-display">₹${trip.price || 0}</div>
+                        ${trip.paymentType ? `<small class="text-muted">${trip.paymentType}</small>` : ''}
+                    </td>
+                    <td>
+                        <div class="fw-semibold">${formatDate(trip.createdAt)}</div>
+                        <small class="text-muted">${formatTime(trip.createdAt)}</small>
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary" onclick="showTripDetails('${trip.tripId}')" title="View Details">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-outline-success" onclick="focusOnMap('${trip.tripId}')" title="Show on Map">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </button>
+                            <div class="dropdown">
+                                <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                    <i class="fas fa-ellipsis-h"></i>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="#" onclick="copyTripId('${trip.tripId}')">
+                                        <i class="fas fa-copy me-2"></i>Copy Trip ID
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="exportSingleTrip('${trip.tripId}')">
+                                        <i class="fas fa-download me-2"></i>Export Trip
+                                    </a></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </td>
+                `;
+
+            tbody.appendChild(row);
+        });
+
+        if (trips.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                    <td colspan="8" class="text-center text-muted py-4">
+                        <i class="fas fa-search fa-2x mb-3"></i>
+                        <div>No trips found matching your criteria</div>
+                        <small>Try adjusting your search filters</small>
+                    </td>
+                `;
+            tbody.appendChild(row);
+        }
+    }
+
+    // Utility functions
     function getStatusColor(status) {
         const colors = {
             'completed': '#28a745',
@@ -644,7 +1385,7 @@
         return colors[status] || '#6c757d';
     }
 
-    function getStatusBadgeClass(status) {
+    function getStatusClass(status) {
         const classes = {
             'completed': 'success',
             'cancelled': 'danger',
@@ -655,241 +1396,629 @@
         return classes[status] || 'secondary';
     }
 
-    function updateRecentTrips(trips) {
-        const container = document.getElementById('recentTrips');
-        container.innerHTML = '';
-
-        trips.forEach(trip => {
-            const tripCard = document.createElement('div');
-            tripCard.className = 'trip-card card mb-2';
-
-            const time = trip.createdAt ? new Date(trip.createdAt._seconds * 1000) : new Date();
-
-            tripCard.innerHTML = `
-                <div class="card-body p-3">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <h6 class="mb-0" title="${trip.tripId}">${trip.tripId.substring(0, 15)}...</h6>
-                        <span class="badge bg-${getStatusBadgeClass(trip.tripStatus)}">${trip.tripStatus}</span>
-                    </div>
-                    <p class="mb-1"><strong>Driver:</strong> ${trip.driver.name || 'N/A'}</p>
-                    <p class="mb-1"><strong>Route:</strong> ${(trip.from.name || 'Unknown').substring(0, 15)}... → ${(trip.to.name || 'Unknown').substring(0, 15)}...</p>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <small class="text-muted">${time.toLocaleString()}</small>
-                        <span class="price-display">₹${trip.price || 0}</span>
-                    </div>
-                </div>
-            `;
-
-            tripCard.addEventListener('click', () => showTripDetails(trip.tripId));
-            container.appendChild(tripCard);
-        });
-
-        if (trips.length === 0) {
-            container.innerHTML = '<p class="text-muted text-center">No recent trips found</p>';
-        }
+    function formatDateTime(timestamp) {
+        if (!timestamp) return 'N/A';
+        const date = new Date(timestamp._seconds * 1000);
+        return date.toLocaleString('en-IN');
     }
 
-    function updateTable(trips) {
-        const tbody = document.getElementById('tripsTableBody');
-        tbody.innerHTML = '';
+    function formatDate(timestamp) {
+        if (!timestamp) return 'N/A';
+        const date = new Date(timestamp._seconds * 1000);
+        return date.toLocaleDateString('en-IN');
+    }
 
-        trips.forEach(trip => {
-            const row = document.createElement('tr');
-            const createdTime = trip.createdAt ? new Date(trip.createdAt._seconds * 1000) : new Date();
+    function formatTime(timestamp) {
+        if (!timestamp) return 'N/A';
+        const date = new Date(timestamp._seconds * 1000);
+        return date.toLocaleTimeString('en-IN');
+    }
 
-            row.innerHTML = `
-                <td>
-                    <div title="${trip.tripId}">${trip.tripId.substring(0, 12)}...</div>
-                    <small class="text-muted">${trip.rideId || 'N/A'}</small>
-                </td>
-                <td>
-                    <div>${trip.driver.name || 'N/A'}</div>
-                    <small class="text-muted">${trip.driver.phone || 'N/A'}</small>
-                    <br><small class="badge bg-light text-dark">${trip.driver.vehicle?.number || 'N/A'}</small>
-                </td>
-                <td>
-                    <div>${trip.rider.name || 'N/A'}</div>
-                    <small class="text-muted">${trip.rider.phone || 'N/A'}</small>
-                </td>
-                <td>
-                    <div title="${trip.from.name || 'Unknown'}">${(trip.from.name || 'Unknown').substring(0, 20)}...</div>
-                    <small class="text-muted" title="${trip.to.name || 'Unknown'}">→ ${(trip.to.name || 'Unknown').substring(0, 20)}...</small>
-                </td>
-                <td>
-                    <span class="badge bg-${getStatusBadgeClass(trip.tripStatus)}">${trip.tripStatus}</span>
-                    <br><small class="text-muted">${trip.paymentStatus || 'N/A'}</small>
-                </td>
-                <td class="price-display">₹${trip.price || 0}</td>
-                <td>
-                    <div>${createdTime.toLocaleDateString()}</div>
-                    <small class="text-muted">${createdTime.toLocaleTimeString()}</small>
-                </td>
-                <td>
-                    <button class="btn btn-sm btn-outline-primary me-1" onclick="showTripDetails('${trip.tripId}')" title="View Details">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-success" onclick="focusOnMap('${trip.tripId}')" title="Show on Map">
-                        <i class="fas fa-map-marker-alt"></i>
-                    </button>
-                </td>
-            `;
+    function showLoading(show) {
+        document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+    }
 
-            tbody.appendChild(row);
-        });
+    function showError(message) {
+        document.getElementById('errorMessage').textContent = message;
+        document.getElementById('errorAlert').style.display = 'block';
 
-        if (trips.length === 0) {
-            const row = document.createElement('tr');
-            row.innerHTML = '<td colspan="8" class="text-center text-muted">No trips found</td>';
-            tbody.appendChild(row);
-        }
+        // Auto-hide error after 10 seconds
+        setTimeout(() => {
+            hideError();
+        }, 10000);
+    }
+
+    function hideError() {
+        document.getElementById('errorAlert').style.display = 'none';
+    }
+
+    // Additional utility functions and event handlers...
+    function toggleLiveMonitoring() {
+        // Implementation for live monitoring
+    }
+
+    function toggleExportOptions() {
+        const options = document.getElementById('exportOptions');
+        options.style.display = options.style.display === 'block' ? 'none' : 'block';
+    }
+
+    function toggleAdvancedFilters() {
+        const filters = document.getElementById('advancedFilters');
+        filters.style.display = filters.style.display === 'block' ? 'none' : 'block';
+    }
+
+    function exportData(format) {
+        // Implementation for data export
+    }
+
+    function clearResults() {
+        // Implementation for clearing results
+    }
+
+    // Load default data on page load
+    function loadDefaultData() {
+        // Set default time range to today
+        document.getElementById('timeRange').value = 'today';
+
+        // Trigger search with default parameters
+        document.getElementById('searchForm').dispatchEvent(new Event('submit'));
     }
 
     async function showTripDetails(tripId) {
         try {
+            showLoading(true);
             const response = await fetch(`/api/trips/${tripId}`);
-            const trip = await response.json();
 
             if (!response.ok) {
-                throw new Error(trip.error || 'Failed to fetch trip details');
+                throw new Error('Failed to fetch trip details');
             }
+
+            const data = await response.json();
+            const trip = data.trip || data;
 
             const modalContent = document.getElementById('tripDetailsContent');
             modalContent.innerHTML = `
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>Trip Information</h6>
-                        <p><strong>Trip ID:</strong> ${trip.tripId}</p>
-                        <p><strong>Ride ID:</strong> ${trip.rideId || 'N/A'}</p>
-                        <p><strong>Booking ID:</strong> ${trip.bookingId || 'N/A'}</p>
-                        <p><strong>Ride Type:</strong> ${trip.rideType || 'N/A'}</p>
-                        <p><strong>Seats Booked:</strong> ${trip.bookedSeats || 'N/A'}</p>
-                        <p><strong>Status:</strong> <span class="badge bg-${getStatusBadgeClass(trip.tripStatus)}">${trip.tripStatus}</span></p>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>Payment Details</h6>
-                        <p><strong>Amount:</strong> ₹${trip.price || 0}</p>
-                        <p><strong>Payment Method:</strong> ${trip.paymentType || 'N/A'}</p>
-                        <p><strong>Payment Status:</strong> ${trip.paymentStatus || 'N/A'}</p>
-                        <p><strong>Distance:</strong> ${trip.calculatedDistanceInKm || trip.distance || 'N/A'} km</p>
-                    </div>
-                </div>
-                <hr>
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>Driver Details</h6>
-                        <p><strong>Name:</strong> ${trip.driver.name || 'N/A'}</p>
-                        <p><strong>Phone:</strong> ${trip.driver.phone || 'N/A'}</p>
-                        <p><strong>Vehicle:</strong> ${trip.driver.vehicle?.number || 'N/A'}</p>
-                        <p><strong>Rating:</strong> ${trip.driver.rating || 'N/A'}</p>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>Rider Details</h6>
-                        <p><strong>Name:</strong> ${trip.rider.name || 'N/A'}</p>
-                        <p><strong>Phone:</strong> ${trip.rider.phone || 'N/A'}</p>
-                        <p><strong>Type:</strong> ${trip.rider.type || 'N/A'}</p>
-                    </div>
-                </div>
-                <hr>
-                <div class="row">
-                    <div class="col-12">
-                        <h6>Route Information</h6>
-                        <p><strong>From:</strong> ${trip.from.name || 'N/A'}</p>
-                        <p><strong>To:</strong> ${trip.to.name || 'N/A'}</p>
-                    </div>
-                </div>
-                <hr>
-                <div class="row">
-                    <div class="col-12">
-                        <h6>Trip Timeline</h6>
-                        <div class="timeline-item">
-                            <small class="text-muted">${trip.createdAt ? new Date(trip.createdAt._seconds * 1000).toLocaleString() : 'N/A'}</small>
-                            <p class="mb-0">Trip created</p>
+                    <div class="row g-4">
+                        <!-- Trip Overview -->
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header bg-primary text-white">
+                                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Trip Overview</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <p><strong>Trip ID:</strong> ${trip.tripId}</p>
+                                            <p><strong>Ride ID:</strong> ${trip.rideId || 'N/A'}</p>
+                                            <p><strong>Booking ID:</strong> ${trip.bookingId || 'N/A'}</p>
+                                            <p><strong>Status:</strong> <span class="badge bg-${getStatusClass(trip.tripStatus)}">${trip.tripStatus}</span></p>
+                                            <p><strong>Ride Type:</strong> ${trip.rideType || 'N/A'}</p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <p><strong>Created:</strong> ${formatDateTime(trip.createdAt)}</p>
+                                            <p><strong>Started:</strong> ${formatDateTime(trip.startTime)}</p>
+                                            <p><strong>Completed:</strong> ${formatDateTime(trip.endTime)}</p>
+                                            <p><strong>Seats Booked:</strong> ${trip.bookedSeats || 'N/A'}</p>
+                                            <p><strong>Distance:</strong> ${trip.calculatedDistanceInKm || trip.distance || 'N/A'} km</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        ${trip.startTime ? `
-                        <div class="timeline-item">
-                            <small class="text-muted">${new Date(trip.startTime._seconds * 1000).toLocaleString()}</small>
-                            <p class="mb-0">Trip started</p>
+
+                        <!-- Financial Details -->
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0"><i class="fas fa-rupee-sign me-2"></i>Payment Details</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Amount:</strong> <span class="h5 text-success">₹${trip.price || 0}</span></p>
+                                    <p><strong>Calculated Price:</strong> ₹${trip.calculatedPrice || 'N/A'}</p>
+                                    <p><strong>Payment Method:</strong> ${trip.paymentType || 'N/A'}</p>
+                                    <p><strong>Payment Status:</strong> <span class="badge bg-${trip.paymentStatus === 'paid' ? 'success' : 'warning'}">${trip.paymentStatus || 'N/A'}</span></p>
+                                    <p><strong>Cash Collected:</strong> ${trip.cashCollected ? 'Yes' : 'No'}</p>
+                                    ${trip.priceBreakUp ? `<p><strong>Price Override:</strong> ${trip.priceOverridden ? 'Yes' : 'No'}</p>` : ''}
+                                </div>
+                            </div>
                         </div>
-                        ` : ''}
-                        ${trip.driverArrivedTime ? `
-                        <div class="timeline-item">
-                            <small class="text-muted">${new Date(trip.driverArrivedTime._seconds * 1000).toLocaleString()}</small>
-                            <p class="mb-0">Driver arrived</p>
+
+                        <!-- Participants -->
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0"><i class="fas fa-users me-2"></i>Participants</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <h6 class="text-primary">Driver</h6>
+                                        <p class="mb-1"><strong>Name:</strong> ${trip.driver.name || 'N/A'}</p>
+                                        <p class="mb-1"><strong>Phone:</strong> ${trip.driver.phone || 'N/A'}</p>
+                                        <p class="mb-1"><strong>Vehicle:</strong> ${trip.driver.vehicle?.number || 'N/A'}</p>
+                                        <p class="mb-1"><strong>Rating:</strong> ${trip.driver.rating ? `⭐ ${trip.driver.rating}` : 'N/A'}</p>
+                                    </div>
+                                    <div>
+                                        <h6 class="text-primary">Rider</h6>
+                                        <p class="mb-1"><strong>Name:</strong> ${trip.rider.name || 'N/A'}</p>
+                                        <p class="mb-1"><strong>Phone:</strong> ${trip.rider.phone || 'N/A'}</p>
+                                        <p class="mb-1"><strong>Type:</strong> ${trip.rider.type || 'N/A'}</p>
+                                        ${trip.bookedForSomeoneElse ? '<p class="mb-1"><span class="badge bg-info">Proxy Booking</span></p>' : ''}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        ` : ''}
-                        ${trip.endTime ? `
-                        <div class="timeline-item">
-                            <small class="text-muted">${new Date(trip.endTime._seconds * 1000).toLocaleString()}</small>
-                            <p class="mb-0">Trip completed</p>
+
+                        <!-- Route Information -->
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header bg-warning text-dark">
+                                    <h6 class="mb-0"><i class="fas fa-route me-2"></i>Route Information</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <h6 class="text-success">📍 Pickup Location</h6>
+                                            <p><strong>Address:</strong> ${trip.from.name || 'N/A'}</p>
+                                            <p><strong>Short Name:</strong> ${trip.from.shortName || 'N/A'}</p>
+                                            ${trip.pickUpPhoneNumber ? `<p><strong>Contact:</strong> ${trip.pickUpPhoneNumber}</p>` : ''}
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6 class="text-danger">🏁 Dropoff Location</h6>
+                                            <p><strong>Address:</strong> ${trip.to.name || 'N/A'}</p>
+                                            <p><strong>Short Name:</strong> ${trip.to.shortName || 'N/A'}</p>
+                                            ${trip.dropOffPhoneNumber ? `<p><strong>Contact:</strong> ${trip.dropOffPhoneNumber}</p>` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        ` : ''}
-                        ${trip.canceledTime ? `
-                        <div class="timeline-item">
-                            <small class="text-muted">${new Date(trip.canceledTime._seconds * 1000).toLocaleString()}</small>
-                            <p class="mb-0">Trip cancelled - ${trip.cancelReason || 'No reason provided'}</p>
+
+                        <!-- Trip Timeline -->
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header bg-dark text-white">
+                                    <h6 class="mb-0"><i class="fas fa-history me-2"></i>Trip Timeline</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="timeline">
+                                        <div class="timeline-item">
+                                            <strong>Trip Created</strong>
+                                            <small class="text-muted d-block">${formatDateTime(trip.createdAt)}</small>
+                                        </div>
+                                        ${trip.driverArrivedTime ? `
+                                        <div class="timeline-item">
+                                            <strong>Driver Arrived</strong>
+                                            <small class="text-muted d-block">${formatDateTime(trip.driverArrivedTime)}</small>
+                                        </div>` : ''}
+                                        ${trip.startTime ? `
+                                        <div class="timeline-item">
+                                            <strong>Trip Started</strong>
+                                            <small class="text-muted d-block">${formatDateTime(trip.startTime)}</small>
+                                            ${trip.otp ? `<small class="badge bg-info">OTP: ${trip.otp}</small>` : ''}
+                                        </div>` : ''}
+                                        ${trip.endTime ? `
+                                        <div class="timeline-item">
+                                            <strong>Trip Completed</strong>
+                                            <small class="text-muted d-block">${formatDateTime(trip.endTime)}</small>
+                                        </div>` : ''}
+                                        ${trip.canceledTime ? `
+                                        <div class="timeline-item">
+                                            <strong>Trip Cancelled</strong>
+                                            <small class="text-muted d-block">${formatDateTime(trip.canceledTime)}</small>
+                                            <p class="mb-0"><strong>Reason:</strong> ${trip.cancelReason || 'No reason provided'}</p>
+                                            <p class="mb-0"><strong>Cancelled by:</strong> ${trip.canceledBy || 'N/A'}</p>
+                                        </div>` : ''}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        ` : ''}
+
+                        <!-- Additional Information -->
+                        ${trip.messageForDriver || trip.isRecurringTrip || trip.isQrRide ? `
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header bg-secondary text-white">
+                                    <h6 class="mb-0"><i class="fas fa-info me-2"></i>Additional Information</h6>
+                                </div>
+                                <div class="card-body">
+                                    ${trip.messageForDriver ? `<p><strong>Message for Driver:</strong> ${trip.messageForDriver}</p>` : ''}
+                                    ${trip.isRecurringTrip ? '<p><span class="badge bg-info">Recurring Trip</span></p>' : ''}
+                                    ${trip.isQrRide ? '<p><span class="badge bg-success">QR Ride</span></p>' : ''}
+                                    ${trip.isDynamicPricingApplied ? '<p><span class="badge bg-warning">Dynamic Pricing Applied</span></p>' : ''}
+                                </div>
+                            </div>
+                        </div>` : ''}
                     </div>
-                </div>
-            `;
+                `;
 
             new bootstrap.Modal(document.getElementById('tripDetailsModal')).show();
 
         } catch (error) {
-            showError('Failed to load trip details: ' + error.message);
+            notyf.error('Failed to load trip details: ' + error.message);
+        } finally {
+            showLoading(false);
         }
     }
 
     function focusOnMap(tripId) {
-        // Find the trip data to get coordinates
-        const foundMarkers = markers.filter(marker => {
-            const popup = marker.getPopup();
-            return popup && popup.getContent().includes(tripId);
-        });
+        const trip = currentData?.trips?.find(t => t.tripId === tripId);
+        if (trip && trip.from?.coordinate && trip.to?.coordinate) {
+            const bounds = [
+                [trip.from.coordinate.lat, trip.from.coordinate.lng],
+                [trip.to.coordinate.lat, trip.to.coordinate.lng]
+            ];
+            map.fitBounds(bounds, { padding: [50, 50] });
 
-        if (foundMarkers.length > 0) {
-            // Focus on the pickup marker (first one)
-            const marker = foundMarkers[0];
-            map.setView(marker.getLatLng(), 15);
-            marker.openPopup();
+            // Highlight the route temporarily
+            const highlightRoute = L.polyline(bounds, {
+                color: '#ff6b6b',
+                weight: 6,
+                opacity: 0.8
+            }).addTo(map);
+
+            setTimeout(() => {
+                map.removeLayer(highlightRoute);
+            }, 3000);
+
+            notyf.success('Trip route highlighted on map');
         } else {
-            showError('Trip location not found on map');
+            notyf.error('Trip location not found on map');
         }
     }
 
-    // Add export functionality
-    function exportTrips() {
-        const formData = {
-            tripId: document.getElementById('tripId').value.trim(),
-            driverId: document.getElementById('driverId').value.trim(),
-            riderPhone: document.getElementById('riderPhone').value.trim(),
-            tripStatus: document.getElementById('tripStatus').value,
-            paymentStatus: document.getElementById('paymentStatus').value,
-            rideType: document.getElementById('rideType').value,
-            timeRange: document.getElementById('timeRange').value,
-            customStart: document.getElementById('customStart').value,
-            customEnd: document.getElementById('customEnd').value,
-            format: 'csv',
-            maxRecords: 1000
-        };
+    function copyTripId(tripId) {
+        navigator.clipboard.writeText(tripId).then(() => {
+            notyf.success('Trip ID copied to clipboard');
+        }).catch(() => {
+            notyf.error('Failed to copy Trip ID');
+        });
+    }
 
-        // Build query string
-        const queryParams = new URLSearchParams();
-        Object.keys(formData).forEach(key => {
-            if (formData[key]) {
-                queryParams.append(key, formData[key]);
+    function exportSingleTrip(tripId) {
+        const trip = currentData?.trips?.find(t => t.tripId === tripId);
+        if (trip) {
+            const dataStr = JSON.stringify(trip, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `trip_${tripId}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+            notyf.success('Trip data exported');
+        }
+    }
+
+    function printTripDetails() {
+        window.print();
+    }
+
+    function fitMapToData() {
+        if (markers.length > 0) {
+            const group = new L.featureGroup(markers);
+            map.fitBounds(group.getBounds().pad(0.1));
+        }
+    }
+
+    function toggleHeatmap() {
+        // Implementation for heatmap toggle
+        if (heatmapLayer) {
+            map.removeLayer(heatmapLayer);
+            heatmapLayer = null;
+            notyf.info('Heatmap disabled');
+        } else {
+            // Create heatmap from current data
+            if (currentData?.trips) {
+                const heatData = [];
+                currentData.trips.forEach(trip => {
+                    if (trip.from?.coordinate) {
+                        heatData.push([trip.from.coordinate.lat, trip.from.coordinate.lng, 1]);
+                    }
+                    if (trip.to?.coordinate) {
+                        heatData.push([trip.to.coordinate.lat, trip.to.coordinate.lng, 1]);
+                    }
+                });
+
+                // Note: You would need to include a heatmap plugin like leaflet-heat
+                notyf.info('Heatmap feature requires additional plugin');
+            }
+        }
+    }
+
+    function handleTimeRangeChange() {
+        const timeRange = document.getElementById('timeRange').value;
+        const customRange = document.getElementById('customDateRange');
+
+        if (timeRange === 'custom') {
+            customRange.style.display = 'block';
+            // Set default dates
+            const now = new Date();
+            const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+            document.getElementById('customEnd').value = now.toISOString().slice(0, 16);
+            document.getElementById('customStart').value = yesterday.toISOString().slice(0, 16);
+        } else {
+            customRange.style.display = 'none';
+        }
+    }
+
+    function updateActiveFilters() {
+        const filtersContainer = document.getElementById('activeFilters');
+        const chipsContainer = document.getElementById('filterChips');
+
+        const filters = [];
+        const formElements = document.querySelectorAll('#searchForm input, #searchForm select');
+
+        formElements.forEach(element => {
+            if (element.value && element.value.trim() !== '') {
+                const label = element.previousElementSibling?.textContent || element.id;
+                filters.push({
+                    label: label.replace(':', ''),
+                    value: element.value,
+                    element: element
+                });
             }
         });
 
-        // Open export URL
-        window.open(`/api/trips/export?${queryParams.toString()}`, '_blank');
+        if (filters.length > 0) {
+            filtersContainer.style.display = 'block';
+            chipsContainer.innerHTML = filters.map(filter =>
+                `<span class="filter-chip active" onclick="removeFilter('${filter.element.id}')">
+                        ${filter.label}: ${filter.value} <i class="fas fa-times ms-1"></i>
+                    </span>`
+            ).join('');
+        } else {
+            filtersContainer.style.display = 'none';
+        }
     }
 
-    // Add live monitoring
-    let liveMonitoringInterval;
+    function removeFilter(elementId) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.value = '';
+            updateActiveFilters();
+            // Auto-refresh results if there are other active filters
+            if (currentData) {
+                document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+            }
+        }
+    }
 
-    function toggleLiveMonitoring() {
+    function clearAllFilters() {
+        const formElements = document.querySelectorAll('#searchForm input, #searchForm select');
+        formElements.forEach(element => {
+            if (element.type !== 'submit' && element.type !== 'button') {
+                element.value = '';
+            }
+        });
+
+        // Reset to default values
+        document.getElementById('timeRange').value = 'today';
+        document.getElementById('recordLimit').value = '100';
+        document.getElementById('sortBy').value = 'createdAt';
+
+        updateActiveFilters();
+        clearResults();
+    }
+
+    function filterTable() {
+        const searchTerm = document.getElementById('tableSearch').value.toLowerCase();
+        const rows = document.querySelectorAll('#tripsTableBody tr');
+
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(searchTerm) ? '' : 'none';
+        });
+    }
+
+    function sortTable(column) {
+        const tbody = document.getElementById('tripsTableBody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+
+        // Toggle sort direction
+        if (currentSort.field === column) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.field = column;
+            currentSort.direction = 'asc';
+        }
+
+        rows.sort((a, b) => {
+            let aVal, bVal;
+
+            switch (column) {
+                case 'tripId':
+                    aVal = a.children[0].textContent.trim();
+                    bVal = b.children[0].textContent.trim();
+                    break;
+                case 'driver':
+                    aVal = a.children[1].textContent.trim();
+                    bVal = b.children[1].textContent.trim();
+                    break;
+                case 'rider':
+                    aVal = a.children[2].textContent.trim();
+                    bVal = b.children[2].textContent.trim();
+                    break;
+                case 'status':
+                    aVal = a.children[4].textContent.trim();
+                    bVal = b.children[4].textContent.trim();
+                    break;
+                case 'price':
+                    aVal = parseFloat(a.children[5].textContent.replace(/[₹,]/g, ''));
+                    bVal = parseFloat(b.children[5].textContent.replace(/[₹,]/g, ''));
+                    break;
+                case 'time':
+                    aVal = new Date(a.children[6].textContent.trim());
+                    bVal = new Date(b.children[6].textContent.trim());
+                    break;
+                default:
+                    return 0;
+            }
+
+            if (currentSort.direction === 'asc') {
+                return aVal > bVal ? 1 : -1;
+            } else {
+                return aVal < bVal ? 1 : -1;
+            }
+        });
+
+        // Clear and re-append sorted rows
+        tbody.innerHTML = '';
+        rows.forEach(row => tbody.appendChild(row));
+
+        // Update sort indicators
+        document.querySelectorAll('th i.fas').forEach(icon => {
+            icon.className = 'fas fa-sort';
+        });
+
+        const headerCell = document.querySelector(`th[onclick="sortTable('${column}')"] i`);
+        if (headerCell) {
+            headerCell.className = `fas fa-sort-${currentSort.direction === 'asc' ? 'up' : 'down'}`;
+        }
+    }
+
+    function toggleTableView() {
+        tableView = tableView === 'detailed' ? 'compact' : 'detailed';
+
+        const table = document.querySelector('.table');
+        if (tableView === 'compact') {
+            table.classList.add('table-sm');
+        } else {
+            table.classList.remove('table-sm');
+        }
+
+        notyf.info(`Switched to ${tableView} view`);
+    }
+
+    function updatePagination(data) {
+        const pagination = document.getElementById('pagination');
+        const totalResults = data.totalTrips;
+        const size = parseInt(document.getElementById('recordLimit').value) || 100;
+        const totalPages = Math.ceil(totalResults / size);
+        const currentPage = 1; // For now, we'll implement basic pagination
+
+        // Update showing info
+        document.getElementById('showingFrom').textContent = 1;
+        document.getElementById('showingTo').textContent = Math.min(size, totalResults);
+        document.getElementById('totalResults').textContent = totalResults;
+
+        // Generate pagination HTML
+        if (totalPages > 1) {
+            let paginationHTML = '';
+
+            // Previous button
+            paginationHTML += `
+                    <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                        <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Previous</a>
+                    </li>
+                `;
+
+            // Page numbers
+            for (let i = 1; i <= Math.min(totalPages, 5); i++) {
+                paginationHTML += `
+                        <li class="page-item ${i === currentPage ? 'active' : ''}">
+                            <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+                        </li>
+                    `;
+            }
+
+            // Next button
+            paginationHTML += `
+                    <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                        <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Next</a>
+                    </li>
+                `;
+
+            pagination.innerHTML = paginationHTML;
+        } else {
+            pagination.innerHTML = '';
+        }
+    }
+
+    function changePage(page) {
+        // Implementation for pagination
+        console.log('Change to page:', page);
+        // You would implement actual pagination here
+    }
+
+    function setupQuickSearch() {
+        const quickSearchInput = document.getElementById('quickSearch');
+        const dropdown = document.getElementById('quickSearchDropdown');
+        let searchTimeout;
+
+        quickSearchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            const query = this.value.trim();
+
+            if (query.length >= 2) {
+                searchTimeout = setTimeout(async () => {
+                    try {
+                        const response = await fetch(`/api/trips/search/text?q=${encodeURIComponent(query)}&size=10`);
+                        const data = await response.json();
+
+                        if (response.ok && data.results?.length > 0) {
+                            displayQuickSearchResults(data.results);
+                        } else {
+                            hideQuickSearchResults();
+                        }
+                    } catch (error) {
+                        console.error('Quick search error:', error);
+                        hideQuickSearchResults();
+                    }
+                }, 300);
+            } else {
+                hideQuickSearchResults();
+            }
+        });
+
+        // Hide dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!quickSearchInput.contains(e.target) && !dropdown.contains(e.target)) {
+                hideQuickSearchResults();
+            }
+        });
+    }
+
+    function displayQuickSearchResults(results) {
+        const dropdown = document.getElementById('quickSearchDropdown');
+
+        dropdown.innerHTML = results.map(trip => `
+                <div class="quick-search-item" onclick="selectQuickSearchTrip('${trip.tripId}')">
+                    <div class="fw-bold">${trip.tripId}</div>
+                    <small class="text-muted">
+                        ${trip.driver.name} | ${trip.from.name} → ${trip.to.name}
+                    </small>
+                    <div class="mt-1">
+                        <span class="badge bg-${getStatusClass(trip.tripStatus)} me-1">${trip.tripStatus}</span>
+                        <span class="text-success">₹${trip.price || 0}</span>
+                    </div>
+                </div>
+            `).join('');
+
+        dropdown.style.display = 'block';
+    }
+
+    function hideQuickSearchResults() {
+        document.getElementById('quickSearchDropdown').style.display = 'none';
+    }
+
+    function selectQuickSearchTrip(tripId) {
+        document.getElementById('tripId').value = tripId;
+        document.getElementById('quickSearch').value = '';
+        hideQuickSearchResults();
+        document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+    }
+
+    function scrollToTop() {
+        window.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+        });
+    }
+
+    async function toggleLiveMonitoring() {
         const button = document.getElementById('liveToggle');
+        const indicator = document.getElementById('liveIndicator');
 
         if (liveMonitoringInterval) {
             // Stop monitoring
@@ -898,63 +2027,125 @@
             button.innerHTML = '<i class="fas fa-play me-2"></i>Start Live';
             button.classList.remove('btn-danger');
             button.classList.add('btn-success');
+            indicator.style.display = 'none';
+            notyf.info('Live monitoring stopped');
         } else {
             // Start monitoring
-            loadLiveTrips();
-            liveMonitoringInterval = setInterval(loadLiveTrips, 30000); // Update every 30 seconds
             button.innerHTML = '<i class="fas fa-pause me-2"></i>Stop Live';
             button.classList.remove('btn-success');
             button.classList.add('btn-danger');
+            indicator.style.display = 'inline-block';
+
+            await loadLiveTrips();
+            liveMonitoringInterval = setInterval(loadLiveTrips, 30000); // Update every 30 seconds
+
+            notyf.success('Live monitoring started');
         }
     }
 
     async function loadLiveTrips() {
         try {
-            const response = await fetch('/api/trips/live');
+            const lastUpdate = currentData?.metadata?.processedAt ?
+                Math.floor(new Date(currentData.metadata.processedAt).getTime() / 1000) :
+                Math.floor(Date.now() / 1000) - 3600;
+
+            const response = await fetch(`/api/trips/live?lastUpdate=${lastUpdate}`);
             const data = await response.json();
 
-            if (response.ok) {
-                // Update with live trip data
-                displayResults(data);
+            if (response.ok && data.updates?.length > 0) {
+                // Show notification for new updates
+                notyf.info(`${data.updates.length} trip updates received`);
 
-                // Show live indicator
-                const liveIndicator = document.getElementById('liveIndicator');
-                if (liveIndicator) {
-                    liveIndicator.style.display = 'block';
-                    setTimeout(() => {
-                        liveIndicator.style.display = 'none';
-                    }, 2000);
+                // Update the current view if we have active results
+                if (currentData) {
+                    await refreshData();
                 }
             }
         } catch (error) {
             console.error('Live monitoring error:', error);
+            notyf.error('Live monitoring connection lost');
         }
+    }
+
+    async function refreshData() {
+        if (currentData) {
+            // Re-run the last search to get fresh data
+            await handleSearch(new Event('submit'));
+        }
+    }
+
+    async function exportData(format) {
+        try {
+            showLoading(true);
+
+            const formData = collectFormData();
+            const params = new URLSearchParams({
+                format,
+                timeRange: formData.timeRange,
+                maxRecords: formData.recordLimit || 1000
+            });
+
+            // Add other filters
+            if (formData.tripStatus) params.append('tripStatus', formData.tripStatus);
+            if (formData.driverId) params.append('driverId', formData.driverId);
+
+            const response = await fetch(`/api/trips/export?${params.toString()}`);
+
+            if (!response.ok) {
+                throw new Error('Export failed');
+            }
+
+            if (format === 'json') {
+                const data = await response.json();
+                const dataStr = JSON.stringify(data, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                downloadFile(dataBlob, `trips_export_${Date.now()}.json`);
+            } else {
+                const blob = await response.blob();
+                downloadFile(blob, `trips_export_${Date.now()}.${format}`);
+            }
+
+            notyf.success(`Data exported as ${format.toUpperCase()}`);
+            document.getElementById('exportOptions').style.display = 'none';
+
+        } catch (error) {
+            notyf.error('Export failed: ' + error.message);
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    function downloadFile(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(url);
     }
 
     function clearResults() {
         document.getElementById('resultsSection').style.display = 'none';
-        document.getElementById('tripId').value = '';
-        document.getElementById('driverId').value = '';
-        document.getElementById('riderPhone').value = '';
-        document.getElementById('tripStatus').value = '';
-        document.getElementById('paymentStatus').value = '';
-        document.getElementById('rideType').value = '';
+        currentData = null;
+
+        // Clear form
+        const formElements = document.querySelectorAll('#searchForm input:not([type="submit"]):not([type="button"]), #searchForm select');
+        formElements.forEach(element => {
+            if (element.id !== 'timeRange' && element.id !== 'recordLimit' && element.id !== 'sortBy') {
+                element.value = '';
+            }
+        });
+
+        // Reset defaults
         document.getElementById('timeRange').value = 'today';
         document.getElementById('customDateRange').style.display = 'none';
-        document.getElementById('minPrice').value = '';
-        document.getElementById('maxPrice').value = '';
+
+        updateActiveFilters();
         hideError();
 
         // Stop live monitoring if running
         if (liveMonitoringInterval) {
-            clearInterval(liveMonitoringInterval);
-            liveMonitoringInterval = null;
-            const button = document.getElementById('liveToggle');
-            if (button) {
-                button.innerHTML = '<i class="fas fa-play me-2"></i>Start Live';
-                button.classList.remove('btn-danger');
-                button.classList.add('btn-success');
-            }
+            toggleLiveMonitoring();
         }
 
         // Clear map
@@ -963,84 +2154,118 @@
         markers = [];
         routes = [];
         map.setView([28.6139, 77.2090], 10);
+
+        notyf.info('Search cleared');
     }
 
-    function showLoading(show) {
-        document.getElementById('loading').style.display = show ? 'block' : 'none';
+    // Performance optimization: Debounce resize events
+    let resizeTimeout;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(function() {
+            if (map) {
+                map.invalidateSize();
+            }
+            if (trendsChart) {
+                trendsChart.resize();
+            }
+            if (statusChart) {
+                statusChart.resize();
+            }
+        }, 250);
+    });
+
+    // Handle offline/online events
+    window.addEventListener('offline', function() {
+        notyf.error('You are now offline. Some features may not work.');
+    });
+
+    window.addEventListener('online', function() {
+        notyf.success('You are back online.');
+    });
+
+    // Auto-save form state to localStorage
+    function saveFormState() {
+        const formData = collectFormData();
+        localStorage.setItem('tripAnalysisFormState', JSON.stringify(formData));
     }
 
-    function showError(message) {
-        document.getElementById('errorMessage').textContent = message;
-        document.getElementById('errorAlert').style.display = 'block';
-    }
-
-    function hideError() {
-        document.getElementById('errorAlert').style.display = 'none';
-    }
-
-    // Add search functionality for quick trip lookup
-    function setupQuickSearch() {
-        const quickSearchInput = document.getElementById('quickSearch');
-        if (quickSearchInput) {
-            let searchTimeout;
-            quickSearchInput.addEventListener('input', function() {
-                clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(async () => {
-                    const query = this.value.trim();
-                    if (query.length >= 3) {
-                        try {
-                            const response = await fetch(`/api/trips/search/text?q=${encodeURIComponent(query)}&size=10`);
-                            const data = await response.json();
-
-                            if (response.ok && data.trips.length > 0) {
-                                // Show quick search results
-                                displayQuickSearchResults(data.trips);
-                            }
-                        } catch (error) {
-                            console.error('Quick search error:', error);
-                        }
+    function loadFormState() {
+        try {
+            const savedState = localStorage.getItem('tripAnalysisFormState');
+            if (savedState) {
+                const formData = JSON.parse(savedState);
+                Object.keys(formData).forEach(key => {
+                    const element = document.getElementById(key);
+                    if (element && formData[key]) {
+                        element.value = formData[key];
                     }
-                }, 500);
-            });
+                });
+            }
+        } catch (error) {
+            console.error('Error loading form state:', error);
         }
     }
 
-    function displayQuickSearchResults(trips) {
-        // Create dropdown with search results
-        let dropdown = document.getElementById('quickSearchDropdown');
-        if (!dropdown) {
-            dropdown = document.createElement('div');
-            dropdown.id = 'quickSearchDropdown';
-            dropdown.className = 'position-absolute bg-white border rounded shadow-sm mt-1 w-100';
-            dropdown.style.zIndex = '1000';
-            document.getElementById('quickSearch').parentNode.style.position = 'relative';
-            document.getElementById('quickSearch').parentNode.appendChild(dropdown);
-        }
+    // Save form state when inputs change
+    document.addEventListener('input', debounce(saveFormState, 1000));
+    document.addEventListener('change', saveFormState);
 
-        dropdown.innerHTML = trips.map(trip => `
-            <div class="p-2 border-bottom cursor-pointer quick-search-item" onclick="selectQuickSearchTrip('${trip.tripId}')">
-                <strong>${trip.tripId}</strong><br>
-                <small>${trip.driver.name} | ${trip.from.name} → ${trip.to.name}</small>
-            </div>
-        `).join('');
-
-        dropdown.style.display = 'block';
-
-        // Hide dropdown when clicking outside
-        setTimeout(() => {
-            document.addEventListener('click', function hideDropdown(e) {
-                if (!dropdown.contains(e.target) && e.target.id !== 'quickSearch') {
-                    dropdown.style.display = 'none';
-                    document.removeEventListener('click', hideDropdown);
-                }
-            });
-        }, 100);
+    // Utility function for debouncing
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
     }
 
-    function selectQuickSearchTrip(tripId) {
-        document.getElementById('tripId').value = tripId;
-        document.getElementById('quickSearchDropdown').style.display = 'none';
-        document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+    // Load saved form state on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadFormState();
+    });
+
+    // Add loading states to buttons
+    function setButtonLoading(buttonId, loading) {
+        const button = document.getElementById(buttonId);
+        if (button) {
+            if (loading) {
+                button.disabled = true;
+                button.innerHTML = button.innerHTML.replace('<i class="fas fa-', '<i class="fas fa-spinner fa-spin');
+            } else {
+                button.disabled = false;
+                button.innerHTML = button.innerHTML.replace('fa-spinner fa-spin', 'fa-search');
+            }
+        }
+    }
+
+    // Enhanced error handling with retry functionality
+    async function retryOperation(operation, maxRetries = 3) {
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                return await operation();
+            } catch (error) {
+                if (i === maxRetries - 1) throw error;
+                await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+            }
+        }
+    }
+
+    // Add service worker for offline functionality (if needed)
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+            navigator.serviceWorker.register('/sw.js')
+                .then(function(registration) {
+                    console.log('ServiceWorker registration successful');
+                })
+                .catch(function(err) {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+        });
     }
 </script>
 </body>
