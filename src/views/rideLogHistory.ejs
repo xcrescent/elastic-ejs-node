@@ -103,11 +103,12 @@
                 <div class="col-md-3">
                     <label class="form-label">Driver ID</label>
                     <input type="text" class="form-control" id="driverId" placeholder="Enter driver ID"
-                           value="48a18460-0dd3-11ef-ab1d-81f61a430ce0" required>
+                           value="48a18460-0dd3-11ef-ab1d-81f61a430ce0">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Time Range</label>
                     <select class="form-select" id="timeRange">
+                        <option value="last1h">Last 1 Hour</option>
                         <option value="last24h">Last 24 Hours</option>
                         <option value="last7d">Last 7 Days</option>
                         <option value="last30d">Last 30 Days</option>
@@ -308,16 +309,13 @@
 
         const formData = {
             driverId: document.getElementById('driverId').value.trim(),
+            // rideStatus: document.getElementById('rideStatus').value,
             timeRange: document.getElementById('timeRange').value,
             customStart: document.getElementById('customStart').value,
             customEnd: document.getElementById('customEnd').value,
             recordLimit: document.getElementById('recordLimit').value
         };
 
-        if (!formData.driverId) {
-            showError('Please enter a Driver ID');
-            return;
-        }
 
         if (formData.timeRange === 'custom' && (!formData.customStart || !formData.customEnd)) {
             showError('Please select both start and end dates for custom range');
@@ -419,7 +417,7 @@
             item.className = 'timeline-item';
 
             const time = new Date(location.createdAt._seconds * 1000);
-            const statusColor = location.online ? 'success' : 'secondary';
+            const statusColor = location.online ? (location.bookedSeats > 0 ? 'success' : 'primary') : 'secondary';
 
             item.innerHTML = `
                     <div class="d-flex justify-content-between align-items-start">
@@ -428,7 +426,7 @@
                             <p class="mb-1"><strong>Ride:</strong> ${location.rideId || 'N/A'}</p>
                         </div>
                         <span class="badge bg-${statusColor} status-badge">
-                            ${location.online ? 'Online' : 'Offline'}
+                            ${location.online && location.bookedSeats > 0 ? 'On Ride' : location.online && location.bookedSeats === 0 ? 'Available' : 'On Break'}
                         </span>
                     </div>
                     <p class="mb-0"><small>Seats: ${location.bookedSeats || 0}</small></p>
@@ -449,9 +447,12 @@
             const lng = location.currentLocation?.lng?.toFixed(6) || 'N/A';
 
             const statusBadges = [];
-            if (location.online) statusBadges.push('<span class="badge bg-success me-1">Online</span>');
+            if (location.online && location.bookedSeats > 0) statusBadges.push('<span class="badge bg-success me-1">On Ride</span>');
+            if (location.online && location.bookedSeats === 0) statusBadges.push('<span class="badge bg-primary me-1">Available</span>');
+            if (!location.online) statusBadges.push('<span class="badge bg-secondary me-1">On Break</span>');
             if (location.outForDelivery) statusBadges.push('<span class="badge bg-warning me-1">Delivery</span>');
-            if (location.checkedIn) statusBadges.push('<span class="badge bg-info me-1">Checked In</span>');
+            if (location.checkedIn) statusBadges.push('<span class="badge bg-info me-1">Offline</span>');
+
 
             row.innerHTML = `
                     <td>${time.toLocaleString()}</td>

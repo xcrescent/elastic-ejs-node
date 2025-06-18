@@ -392,14 +392,14 @@ router.post('/api/search', async (req, res) => {
   try {
     const { driverId, timeRange, customStart, customEnd, recordLimit } = req.body;
 
-    if (!driverId) {
-      return res.status(400).json({ error: 'Driver ID is required' });
-    }
 
     let result;
     const options = { size: parseInt(recordLimit) || 500 };
 
     switch (timeRange) {
+        case 'last1h':
+            result = await fetcher.getRecentRideLocationHistory(driverId, 1, options);
+            break;
       case 'last24h':
         result = await fetcher.getRecentRideLocationHistory(driverId, 24, options);
         break;

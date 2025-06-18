@@ -52,18 +52,14 @@ class RideLocationHistoryFetcher {
      * Build Elasticsearch query
      */
     buildQuery(driverId, options) {
-        const { size, startTime, endTime, calculateDistance } = options;
+        const { size, startTime, endTime, calculateDistance, rideStatus } = options;
 
         const query = {
             size,
             query: {
                 bool: {
                     filter: [
-                        {
-                            term: {
-                                "driver.id.keyword": driverId
-                            }
-                        }
+
                     ]
                 }
             },
@@ -75,6 +71,22 @@ class RideLocationHistoryFetcher {
                 }
             ]
         };
+
+        if (driverId) {
+            query.query.bool.filter.push( {
+                term: {
+                    "driver.id.keyword": driverId
+                }
+            });
+        }
+
+        if (rideStatus) {
+            // query.query.bool.filter.push({
+            //     term: {
+            //         "assignedRouteId.keyword": polygonId
+            //     }
+            // });
+        }
 
         // Add time range filter if provided
         if (startTime || endTime) {
@@ -156,11 +168,21 @@ class RideLocationHistoryFetcher {
         let lowAccuracyCount = 0;
         let highAccuracyLocationHistory = [];
         let highAccuracyDistance = 0;
+        let onBreakDistance = 0;
+        let onRideDistance = 0;
+        let availableDistance = 0;
+        let unexpectedStateCount = 0;
+        let unexpectedDistance = 0;
+        let unexpectedLocationHistory = [];
+        let lastTimestamp = moment.unix(hits[0]._source.createdAt._seconds);
         for (const hit of hits) {
+            const timestamp = moment.unix(hit._source.createdAt._seconds);
             // console.log(hit._source);
             console.log(hit._source.currentLocation);
             // IST
-            console.log(moment.unix(hit._source.createdAt._seconds).format('YYYY-MM-DD HH:mm:ss'));
+            console.log(timestamp.format('YYYY-MM-DD HH:mm:ss'));
+            const timeDifference = lastTimestamp.diff(timestamp, 'seconds');
+            console.log(`Time difference from last record: ${timeDifference} seconds`);
 
             if (hit._source.currentLocation.accuracy < 500) {
                 highAccuracyCount++;
@@ -169,24 +191,46 @@ class RideLocationHistoryFetcher {
                 if (hit._source.currentLocation.lat && hit._source.currentLocation.lng) {
                     if (highAccuracyLocationHistory.length > 1) {
                         const lastEntry = highAccuracyLocationHistory[highAccuracyLocationHistory.length - 2];
-                        highAccuracyDistance += RideLocationHistoryFetcher.calculateDistance(
+                        const calculatedDistance = RideLocationHistoryFetcher.calculateDistance(
                             lastEntry.currentLocation.lat, lastEntry.currentLocation.lng,
                             hit._source.currentLocation.lat, hit._source.currentLocation.lng
                         );
+                        highAccuracyDistance += calculatedDistance;
+                        if (hit._source.outForDelivery || hit._source.bookedSeats > 0) {
+                            onRideDistance += calculatedDistance;
+                        } else if (hit._source.online && hit._source.bookedSeats === 0) {
+                            availableDistance += calculatedDistance;
+                        } else if (!hit._source.online && timeDifference < 0) { // consider as on break
+                            onBreakDistance += calculatedDistance;
+                        } else {
+                            console.warn(`Unexpected state for hit: ${JSON.stringify(hit._source)}`);
+                            unexpectedStateCount++;
+                            unexpectedDistance += calculatedDistance;
+                            unexpectedLocationHistory.push(hit._source);
+                        }
                     }
                 }
             } else {
                 lowAccuracyCount++;
             }
+            lastTimestamp = timestamp;
         }
+        // Log summary statistics
         console.log(`Total records found: ${totalHits}`);
         console.log(`Total records returned: ${hits.length}`);
         console.log(`High accuracy locations: ${highAccuracyCount}`);
         console.log(`Low accuracy locations: ${lowAccuracyCount}`);
         console.log(`Distance traveled: ${response.aggregations ? response.aggregations.distance_traveled.value : 'N/A'} km`);
         console.log(`High accuracy distance: ${highAccuracyDistance.toFixed(2)} km`);
+        console.log(`On Break Distance: ${onBreakDistance.toFixed(2)} km`);
+        console.log(`On Ride Distance: ${onRideDistance.toFixed(2)} km`);
+        console.log(`Available Distance: ${availableDistance.toFixed(2)} km`);
+        console.log(`Unexpected state count: ${unexpectedStateCount}`);
+        console.log(`Unexpected distance: ${unexpectedDistance.toFixed(2)} km`);
         const highAccuracyPolyline = this.generatePolylineFromLocations(highAccuracyLocationHistory);
         console.log(`High accuracy polyline: ${highAccuracyPolyline}`);
+        const unexpectedPolyline = this.generatePolylineFromLocations(unexpectedLocationHistory);
+        console.log(`Unexpected state polyline: ${unexpectedPolyline}`);
         const locations = hits.map(hit => ({
             id: hit._id,
             rideId: hit._source.rideId,
