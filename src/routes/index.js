@@ -390,11 +390,11 @@ router.get('/ride-log-history', (req, res) => {
 
 router.post('/api/search', async (req, res) => {
   try {
-    const { driverId, timeRange, customStart, customEnd, recordLimit } = req.body;
+    const { driverId, timeRange, customStart, customEnd, recordLimit, rideStatus } = req.body;
 
 
     let result;
-    const options = { size: parseInt(recordLimit) || 500 };
+    const options = { size: parseInt(recordLimit) || 500, rideStatus: rideStatus || null };
 
     switch (timeRange) {
         case 'last1h':

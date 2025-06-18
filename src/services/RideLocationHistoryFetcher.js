@@ -27,11 +27,12 @@ class RideLocationHistoryFetcher {
             size = 500,
             startTime,
             endTime,
-            calculateDistance = true
+            calculateDistance = true,
+            rideStatus = null
         } = options;
 
         try {
-            const query = this.buildQuery(driverId, { size, startTime, endTime, calculateDistance });
+            const query = this.buildQuery(driverId, { size, startTime, endTime, calculateDistance, rideStatus });
 
             console.log('Executing Elasticsearch query...');
             console.log('Query:', JSON.stringify(query, null, 2));
@@ -81,11 +82,42 @@ class RideLocationHistoryFetcher {
         }
 
         if (rideStatus) {
-            // query.query.bool.filter.push({
-            //     term: {
-            //         "assignedRouteId.keyword": polygonId
-            //     }
-            // });
+            switch (rideStatus.toLowerCase()) {
+                case 'on_ride':
+                    // On Ride: either outForDelivery is true OR bookedSeats > 0
+                    query.query.bool.filter.push({
+                        bool: {
+                            should: [
+                                { term: { "outForDelivery": true } },
+                                { range: { "bookedSeats": { gt: 0 } } }
+                            ],
+                            minimum_should_match: 1
+                        }
+                    });
+                    break;
+
+                case 'available':
+                    // Available: online is true AND bookedSeats is 0 AND outForDelivery is false (or doesn't exist)
+                    query.query.bool.filter.push({
+                        bool: {
+                            must: [
+                                { term: { "online": true } },
+                                { term: { "bookedSeats": 0 } }
+                            ],
+                            must_not: [
+                                { term: { "outForDelivery": true } }
+                            ]
+                        }
+                    });
+                    break;
+
+                case 'on_break':
+                    // On Break: online is false
+                    query.query.bool.filter.push({
+                        term: { "online": false }
+                    });
+                    break;
+            }
         }
 
         // Add time range filter if provided
