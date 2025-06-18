@@ -100,12 +100,24 @@
         <h3 class="mb-4"><i class="fas fa-search me-2"></i>Search Driver Location History</h3>
         <form id="searchForm">
             <div class="row">
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label">Driver ID</label>
                     <input type="text" class="form-control" id="driverId" placeholder="Enter driver ID"
                            value="48a18460-0dd3-11ef-ab1d-81f61a430ce0">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <label class="form-label">Ride Status</label>
+                    <select class="form-select" id="rideStatus">
+                        <option value="">All Status</option>
+                        <option value="on_ride">On Ride</option>
+                        <option value="available">Available</option>
+                        <option value="on_break">On Break</option>
+                    </select>
+                    <div class="status-filter-info">
+                        <small>Filter by driver's current status</small>
+                    </div>
+                </div>
+                <div class="col-md-2">
                     <label class="form-label">Time Range</label>
                     <select class="form-select" id="timeRange">
                         <option value="last1h">Last 1 Hour</option>
@@ -151,7 +163,21 @@
             </div>
         </form>
     </div>
-
+    <!-- Status Filter Legend -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body py-2">
+                    <small class="text-muted">
+                        <strong>Status Definitions:</strong>
+                        <span class="badge bg-success me-2">On Ride</span> Driver has booked seats or is out for delivery
+                        <span class="badge bg-primary me-2">Available</span> Driver is online with no booked seats
+                        <span class="badge bg-secondary me-2">On Break</span> Driver is offline
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- Error Alert -->
     <div class="alert alert-danger error-alert" id="errorAlert">
         <i class="fas fa-exclamation-triangle me-2"></i>
@@ -310,7 +336,7 @@
 
         const formData = {
             driverId: document.getElementById('driverId').value.trim(),
-            // rideStatus: document.getElementById('rideStatus').value,
+            rideStatus: document.getElementById('rideStatus').value,
             timeRange: document.getElementById('timeRange').value,
             customStart: document.getElementById('customStart').value,
             customEnd: document.getElementById('customEnd').value,

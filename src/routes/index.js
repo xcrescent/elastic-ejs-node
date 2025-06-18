@@ -439,5 +439,402 @@ router.get('/api/driver/:driverId/recent', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch data', details: error.message });
   }
 });
+// Add these routes to your existing routes/index.js file
 
+const tripAnalysisFetcher = require('../services/TripAnalysisFetcher');
+
+// Trip Analysis Dashboard route
+router.get('/trip-analysis', (req, res) => {
+  res.render('tripAnalysis', {
+    title: 'Trip Analysis Dashboard',
+    moment: moment
+  });
+});
+
+// API route for trip search
+router.post('/api/trips/search', async (req, res) => {
+  try {
+    const {
+      tripId,
+      rideId,
+      driverId,
+      riderId,
+      riderPhone,
+      tripStatus,
+      paymentStatus,
+      rideType,
+      timeRange,
+      customStart,
+      customEnd,
+      minPrice,
+      maxPrice,
+      recordLimit,
+      sortBy,
+      sortOrder
+    } = req.body;
+
+    console.log('Trip search request:', req.body);
+
+    let startTime, endTime;
+
+    // Handle time range
+    switch (timeRange) {
+      case 'today':
+        startTime = moment().startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+        break;
+      case 'yesterday':
+        startTime = moment().subtract(1, 'day').startOf('day').unix();
+        endTime = moment().subtract(1, 'day').endOf('day').unix();
+        break;
+      case 'last7d':
+        startTime = moment().subtract(7, 'days').startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+        break;
+      case 'last30d':
+        startTime = moment().subtract(30, 'days').startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+        break;
+      case 'custom':
+        if (!customStart || !customEnd) {
+          return res.status(400).json({
+            error: 'Custom date range requires both start and end dates'
+          });
+        }
+        startTime = Math.floor(new Date(customStart).getTime() / 1000);
+        endTime = Math.floor(new Date(customEnd).getTime() / 1000);
+        break;
+      default:
+        // Default to today if no time range specified
+        startTime = moment().startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+    }
+
+    const options = {
+      tripId: tripId || undefined,
+      rideId: rideId || undefined,
+      driverId: driverId || undefined,
+      riderId: riderId || undefined,
+      riderPhone: riderPhone || undefined,
+      tripStatus: tripStatus || undefined,
+      paymentStatus: paymentStatus || undefined,
+      rideType: rideType || undefined,
+      startTime,
+      endTime,
+      minPrice: minPrice ? parseInt(minPrice) : undefined,
+      maxPrice: maxPrice ? parseInt(maxPrice) : undefined,
+      size: parseInt(recordLimit) || 100,
+      sortBy: sortBy || 'createdAt',
+      sortOrder: sortOrder || 'desc'
+    };
+
+    // Remove undefined values
+    Object.keys(options).forEach(key =>
+        options[key] === undefined && delete options[key]
+    );
+
+    console.log('Processed options:', options);
+
+    const result = await tripAnalysisFetcher.fetchTrips(options);
+    res.json(result);
+
+  } catch (error) {
+    console.error('Trip search error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch trip data',
+      details: error.message
+    });
+  }
+});
+
+// API route to get specific trip details
+router.get('/api/trips/:tripId', async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    const trip = await tripAnalysisFetcher.getTripById(tripId);
+    res.json(trip);
+  } catch (error) {
+    console.error('Get trip by ID error:', error);
+    if (error.message.includes('not found')) {
+      res.status(404).json({ error: error.message });
+    } else {
+      res.status(500).json({
+        error: 'Failed to fetch trip details',
+        details: error.message
+      });
+    }
+  }
+});
+
+// API route for driver analytics
+router.get('/api/drivers/:driverId/analytics', async (req, res) => {
+  try {
+    const { driverId } = req.params;
+    const timeRange = req.query.timeRange || 'last30d';
+
+    let options = {};
+
+    // Set time range for analytics
+    const endTime = Math.floor(Date.now() / 1000);
+    let startTime;
+
+    switch (timeRange) {
+      case 'last7d':
+        startTime = endTime - (7 * 24 * 3600);
+        break;
+      case 'last30d':
+        startTime = endTime - (30 * 24 * 3600);
+        break;
+      case 'last90d':
+        startTime = endTime - (90 * 24 * 3600);
+        break;
+      default:
+        startTime = endTime - (30 * 24 * 3600);
+    }
+
+    options.startTime = startTime;
+    options.endTime = endTime;
+
+    const analytics = await tripAnalysisFetcher.getDriverAnalytics(driverId, options);
+    res.json(analytics);
+  } catch (error) {
+    console.error('Driver analytics error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch driver analytics',
+      details: error.message
+    });
+  }
+});
+
+// API route for trip text search
+router.get('/api/trips/search/text', async (req, res) => {
+  try {
+    const { q, size = 50 } = req.query;
+
+    if (!q || q.trim().length < 2) {
+      return res.status(400).json({
+        error: 'Search query must be at least 2 characters long'
+      });
+    }
+
+    const result = await tripAnalysisFetcher.searchTrips(q.trim(), { size: parseInt(size) });
+    res.json(result);
+  } catch (error) {
+    console.error('Trip text search error:', error);
+    res.status(500).json({
+      error: 'Failed to search trips',
+      details: error.message
+    });
+  }
+});
+
+// API route for recent trips
+router.get('/api/trips/recent', async (req, res) => {
+  try {
+    const {
+      timeValue = 24,
+      timeUnit = 'hours',
+      size = 50,
+      driverId,
+      tripStatus
+    } = req.query;
+
+    const options = {
+      size: parseInt(size)
+    };
+
+    if (driverId) options.driverId = driverId;
+    if (tripStatus) options.tripStatus = tripStatus;
+
+    const result = await tripAnalysisFetcher.getRecentTrips(
+        parseInt(timeValue),
+        timeUnit,
+        options
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error('Recent trips error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch recent trips',
+      details: error.message
+    });
+  }
+});
+
+// API route for trip analytics summary
+router.get('/api/trips/analytics/summary', async (req, res) => {
+  try {
+    const { timeRange = 'last30d' } = req.query;
+
+    const endTime = Math.floor(Date.now() / 1000);
+    let startTime;
+
+    switch (timeRange) {
+      case 'today':
+        startTime = moment().startOf('day').unix();
+        break;
+      case 'last7d':
+        startTime = endTime - (7 * 24 * 3600);
+        break;
+      case 'last30d':
+        startTime = endTime - (30 * 24 * 3600);
+        break;
+      case 'last90d':
+        startTime = endTime - (90 * 24 * 3600);
+        break;
+      default:
+        startTime = endTime - (30 * 24 * 3600);
+    }
+
+    const result = await tripAnalysisFetcher.fetchTrips({
+      startTime,
+      endTime,
+      size: 0 // Only get aggregations, no individual trips
+    });
+
+    // Calculate additional metrics
+    const summary = {
+      timeRange,
+      totalTrips: result.totalTrips,
+      analytics: result.analytics,
+      metrics: {
+        completionRate: result.analytics.statusBreakdown.completed ?
+            ((result.analytics.statusBreakdown.completed / result.totalTrips) * 100).toFixed(2) : 0,
+        cancellationRate: result.analytics.statusBreakdown.cancelled ?
+            ((result.analytics.statusBreakdown.cancelled / result.totalTrips) * 100).toFixed(2) : 0,
+        averagePrice: result.analytics.priceStats.avg ?
+            result.analytics.priceStats.avg.toFixed(2) : 0,
+        totalRevenue: result.analytics.priceStats.sum || 0
+      }
+    };
+
+    res.json(summary);
+  } catch (error) {
+    console.error('Analytics summary error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch analytics summary',
+      details: error.message
+    });
+  }
+});
+
+// API route for trip export (CSV format)
+router.get('/api/trips/export', async (req, res) => {
+  try {
+    const {
+      format = 'csv',
+      timeRange = 'last7d',
+      tripStatus,
+      driverId,
+      maxRecords = 1000
+    } = req.query;
+
+    // Set time range
+    const endTime = Math.floor(Date.now() / 1000);
+    let startTime;
+
+    switch (timeRange) {
+      case 'today':
+        startTime = moment().startOf('day').unix();
+        break;
+      case 'last7d':
+        startTime = endTime - (7 * 24 * 3600);
+        break;
+      case 'last30d':
+        startTime = endTime - (30 * 24 * 3600);
+        break;
+      default:
+        startTime = endTime - (7 * 24 * 3600);
+    }
+
+    const options = {
+      startTime,
+      endTime,
+      size: parseInt(maxRecords),
+      sortBy: 'createdAt',
+      sortOrder: 'desc'
+    };
+
+    if (tripStatus) options.tripStatus = tripStatus;
+    if (driverId) options.driverId = driverId;
+
+    const result = await tripAnalysisFetcher.fetchTrips(options);
+
+    if (format === 'csv') {
+      // Convert to CSV format
+      const csvHeader = [
+        'Trip ID', 'Ride ID', 'Driver Name', 'Driver Phone', 'Rider Name',
+        'Rider Phone', 'From', 'To', 'Trip Status', 'Payment Status',
+        'Price', 'Created At', 'Start Time', 'End Time'
+      ].join(',');
+
+      const csvRows = result.trips.map(trip => [
+        trip.tripId || '',
+        trip.rideId || '',
+        trip.driver.name || '',
+        trip.driver.phone || '',
+        trip.rider.name || '',
+        trip.rider.phone || '',
+        trip.from.name || '',
+        trip.to.name || '',
+        trip.tripStatus || '',
+        trip.paymentStatus || '',
+        trip.price || 0,
+        trip.createdAt ? new Date(trip.createdAt._seconds * 1000).toISOString() : '',
+        trip.startTime ? new Date(trip.startTime._seconds * 1000).toISOString() : '',
+        trip.endTime ? new Date(trip.endTime._seconds * 1000).toISOString() : ''
+      ].map(field => `"${field}"`).join(','));
+
+      const csvContent = [csvHeader, ...csvRows].join('\n');
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=trips_export_${timeRange}_${Date.now()}.csv`);
+      res.send(csvContent);
+    } else {
+      // Return JSON format
+      res.json(result);
+    }
+
+  } catch (error) {
+    console.error('Trip export error:', error);
+    res.status(500).json({
+      error: 'Failed to export trip data',
+      details: error.message
+    });
+  }
+});
+
+// API route for live trip monitoring
+router.get('/api/trips/live', async (req, res) => {
+  try {
+    // Get ongoing trips from last hour
+    const result = await tripAnalysisFetcher.getRecentTrips(1, 'hours', {
+      tripStatus: 'ongoing',
+      size: 100
+    });
+
+    // Add real-time status information
+    const liveTrips = result.trips.map(trip => ({
+      ...trip,
+      isLive: true,
+      lastUpdate: new Date().toISOString(),
+      estimatedCompletion: trip.startTime ?
+          new Date((trip.startTime._seconds + 3600) * 1000).toISOString() : null
+    }));
+
+    res.json({
+      ...result,
+      trips: liveTrips,
+      refreshInterval: 30000 // 30 seconds
+    });
+
+  } catch (error) {
+    console.error('Live trips error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch live trip data',
+      details: error.message
+    });
+  }
+});
 module.exports = router;

@@ -232,7 +232,7 @@ class RideLocationHistoryFetcher {
                             onRideDistance += calculatedDistance;
                         } else if (hit._source.online && hit._source.bookedSeats === 0) {
                             availableDistance += calculatedDistance;
-                        } else if (!hit._source.online && timeDifference < 0) { // consider as on break
+                        } else if (!hit._source.online && timeDifference < 900) { // consider as on break
                             onBreakDistance += calculatedDistance;
                         } else {
                             console.warn(`Unexpected state for hit: ${JSON.stringify(hit._source)}`);
