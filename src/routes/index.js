@@ -1010,11 +1010,721 @@ router.get('/api/health', async (req, res) => {
   }
 });
 
+// Add these routes to your existing routes/index.js file
+// Fixed Polyline Statistics API (for array structure)
+router.get('/api/trips/polyline/statistics', [
+  query('timeRange').optional().isIn(['today', 'yesterday', 'last7d', 'last30d', 'last90d', 'custom']),
+  query('customStart').optional().isISO8601(),
+  query('customEnd').optional().isISO8601(),
+  query('tripStatus').optional().isIn(['completed', 'cancelled', 'ongoing', 'scheduled', 'assigned']),
+  query('rideType').optional().isIn(['shared', 'private', 'delivery', 'scheduled']),
+  query('driverId').optional().isLength({ max: 100 }).trim(),
+  query('riderId').optional().isLength({ max: 100 }).trim(),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const {
+      timeRange = 'last30d',
+      customStart,
+      customEnd,
+      tripStatus,
+      rideType,
+      driverId,
+      riderId
+    } = req.query;
+
+    let startTime, endTime;
+
+    // Handle time range
+    switch (timeRange) {
+      case 'today':
+        startTime = moment().startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+        break;
+      case 'yesterday':
+        startTime = moment().subtract(1, 'day').startOf('day').unix();
+        endTime = moment().subtract(1, 'day').endOf('day').unix();
+        break;
+      case 'last7d':
+        startTime = moment().subtract(7, 'days').startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+        break;
+      case 'last30d':
+        startTime = moment().subtract(30, 'days').startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+        break;
+      case 'last90d':
+        startTime = moment().subtract(90, 'days').startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+        break;
+      case 'custom':
+        if (!customStart || !customEnd) {
+          return res.status(400).json({
+            error: 'Custom date range requires both start and end dates'
+          });
+        }
+        startTime = Math.floor(new Date(customStart).getTime() / 1000);
+        endTime = Math.floor(new Date(customEnd).getTime() / 1000);
+        break;
+      default:
+        startTime = moment().subtract(30, 'days').startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+    }
+
+    const options = {
+      startTime,
+      endTime,
+      tripStatus,
+      rideType,
+      driverId,
+      riderId
+    };
+
+    // Remove undefined values
+    Object.keys(options).forEach(key =>
+        options[key] === undefined && delete options[key]
+    );
+
+    const statistics = await tripAnalysisFetcher.getPolylineStatistics(options);
+
+    res.json({
+      timeRange,
+      filters: options,
+      statistics,
+      generatedAt: new Date().toISOString(),
+      dataStructure: 'array' // Indicate we're using the array structure
+    });
+
+  } catch (error) {
+    console.error('Polyline statistics error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch polyline statistics',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+// Fixed Trips with Polyline Filter API (for array structure)
+router.post('/api/trips/search/with-polyline', [
+  createRateLimit(100, 15 * 60 * 1000),
+  sanitizeInput,
+  body('polylineRequired').optional().isBoolean(),
+  body('validatePolyline').optional().isBoolean(),
+  body('includePolylineMetrics').optional().isBoolean(),
+  body('timeRange').optional().isIn(['today', 'yesterday', 'last7d', 'last30d', 'custom']),
+  body('customStart').optional().isISO8601(),
+  body('customEnd').optional().isISO8601(),
+  body('tripStatus').optional().isIn(['completed', 'cancelled', 'ongoing', 'scheduled', 'assigned']),
+  body('rideType').optional().isIn(['shared', 'private', 'delivery', 'scheduled']),
+  body('driverId').optional().isLength({ max: 100 }).trim(),
+  body('riderId').optional().isLength({ max: 100 }).trim(),
+  body('recordLimit').optional().isInt({ min: 1, max: 10000 }),
+  body('sortBy').optional().isIn(['createdAt', 'startTime', 'endTime', 'price', 'distance', 'tripStatus']),
+  body('sortOrder').optional().isIn(['asc', 'desc']),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const {
+      polylineRequired = true,
+      validatePolyline = false,
+      includePolylineMetrics = false,
+      timeRange,
+      customStart,
+      customEnd,
+      tripStatus,
+      rideType,
+      driverId,
+      riderId,
+      recordLimit,
+      sortBy,
+      sortOrder,
+      ...otherFilters
+    } = req.body;
+
+    let startTime, endTime;
+
+    // Handle time range (same logic as above)
+    switch (timeRange) {
+      case 'today':
+        startTime = moment().startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+        break;
+      case 'yesterday':
+        startTime = moment().subtract(1, 'day').startOf('day').unix();
+        endTime = moment().subtract(1, 'day').endOf('day').unix();
+        break;
+      case 'last7d':
+        startTime = moment().subtract(7, 'days').startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+        break;
+      case 'last30d':
+        startTime = moment().subtract(30, 'days').startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+        break;
+      case 'custom':
+        if (!customStart || !customEnd) {
+          return res.status(400).json({
+            error: 'Custom date range requires both start and end dates'
+          });
+        }
+        startTime = Math.floor(new Date(customStart).getTime() / 1000);
+        endTime = Math.floor(new Date(customEnd).getTime() / 1000);
+        break;
+      default:
+        if (timeRange) {
+          startTime = moment().startOf('day').unix();
+          endTime = moment().endOf('day').unix();
+        }
+    }
+
+    const searchOptions = {
+      polylineRequired,
+      validatePolyline,
+      includePolylineMetrics,
+      startTime,
+      endTime,
+      tripStatus,
+      rideType,
+      driverId,
+      riderId,
+      size: parseInt(recordLimit) || 100,
+      sortBy: sortBy || 'createdAt',
+      sortOrder: sortOrder || 'desc',
+      includeAnalytics: true,
+      ...otherFilters
+    };
+
+    // Remove undefined values
+    Object.keys(searchOptions).forEach(key =>
+        searchOptions[key] === undefined && delete searchOptions[key]
+    );
+
+    console.log('Polyline-filtered trip search (array structure):', searchOptions);
+
+    let result;
+    if (includePolylineMetrics) {
+      result = await tripAnalysisFetcher.getTripsWithPolylineDetails(searchOptions);
+    } else {
+      result = await tripAnalysisFetcher.fetchTripsWithPolylineFilter(searchOptions);
+    }
+
+    res.json({
+      ...result,
+      searchOptions: {
+        polylineRequired,
+        validatePolyline,
+        includePolylineMetrics,
+        timeRange
+      },
+      metadata: {
+        requestId: req.headers['x-request-id'] || Date.now().toString(),
+        processedAt: new Date().toISOString(),
+        processingTime: Date.now() - req.startTime,
+        dataStructure: 'array'
+      }
+    });
+
+  } catch (error) {
+    console.error('Polyline-filtered trip search error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch trips with polyline filter',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+// Fixed Validate Single Trip Polyline API (for array structure)
+router.get('/api/trips/:tripId/polyline/validate', [
+  param('tripId').isLength({ min: 1, max: 100 }).trim(),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const { tripId } = req.params;
+
+    const validation = await tripAnalysisFetcher.validateTripPolyline(tripId);
+
+    res.json({
+      tripId,
+      validation,
+      validatedAt: new Date().toISOString(),
+      dataStructure: 'array',
+      validationVersion: '2.0' // Updated validation for array structure
+    });
+
+  } catch (error) {
+    console.error('Trip polyline validation error:', error);
+
+    if (error.message.includes('not found')) {
+      res.status(404).json({
+        error: 'Trip not found',
+        tripId: req.params.tripId
+      });
+    } else {
+      res.status(500).json({
+        error: 'Failed to validate trip polyline',
+        details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
+});
+
+// Fixed Bulk Validate Polylines API (for array structure)
+router.post('/api/trips/polyline/validate-bulk', [
+  createRateLimit(10, 15 * 60 * 1000), // Stricter limit for bulk operations
+  body('tripIds').isArray({ min: 1, max: 100 }),
+  body('tripIds.*').isLength({ min: 1, max: 100 }).trim(),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const { tripIds } = req.body;
+
+    console.log(`Bulk validating polylines for ${tripIds.length} trips (array structure)`);
+
+    const result = await tripAnalysisFetcher.bulkValidatePolylines(tripIds);
+
+    res.json({
+      bulkValidation: result,
+      requestInfo: {
+        totalRequested: tripIds.length,
+        requestedTripIds: tripIds,
+        processedAt: new Date().toISOString(),
+        dataStructure: 'array',
+        validationVersion: '2.0'
+      }
+    });
+
+  } catch (error) {
+    console.error('Bulk polyline validation error:', error);
+    res.status(500).json({
+      error: 'Failed to bulk validate polylines',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+// Fixed Get Trips Missing Polylines API (for array structure)
+router.get('/api/trips/missing-polylines', [
+  query('timeRange').optional().isIn(['today', 'yesterday', 'last7d', 'last30d', 'custom']),
+  query('customStart').optional().isISO8601(),
+  query('customEnd').optional().isISO8601(),
+  query('tripStatus').optional().isIn(['completed', 'cancelled', 'ongoing', 'scheduled', 'assigned']),
+  query('rideType').optional().isIn(['shared', 'private', 'delivery', 'scheduled']),
+  query('size').optional().isInt({ min: 1, max: 1000 }),
+  query('sortBy').optional().isIn(['createdAt', 'startTime', 'tripStatus']),
+  query('sortOrder').optional().isIn(['asc', 'desc']),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const {
+      timeRange = 'last7d',
+      customStart,
+      customEnd,
+      tripStatus,
+      rideType,
+      size = 100,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    let startTime, endTime;
+
+    // Handle time range (same logic as above)
+    switch (timeRange) {
+      case 'today':
+        startTime = moment().startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+        break;
+      case 'yesterday':
+        startTime = moment().subtract(1, 'day').startOf('day').unix();
+        endTime = moment().subtract(1, 'day').endOf('day').unix();
+        break;
+      case 'last7d':
+        startTime = moment().subtract(7, 'days').startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+        break;
+      case 'last30d':
+        startTime = moment().subtract(30, 'days').startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+        break;
+      case 'custom':
+        if (!customStart || !customEnd) {
+          return res.status(400).json({
+            error: 'Custom date range requires both start and end dates'
+          });
+        }
+        startTime = Math.floor(new Date(customStart).getTime() / 1000);
+        endTime = Math.floor(new Date(customEnd).getTime() / 1000);
+        break;
+      default:
+        startTime = moment().subtract(7, 'days').startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+    }
+
+    const searchOptions = {
+      polylineRequired: false, // Get trips WITHOUT polylines
+      validatePolyline: false,
+      startTime,
+      endTime,
+      tripStatus,
+      rideType,
+      size: parseInt(size),
+      sortBy,
+      sortOrder,
+      includeAnalytics: true,
+      includePolylineMetrics: true // Include metrics to show route breakdown
+    };
+
+    // Remove undefined values
+    Object.keys(searchOptions).forEach(key =>
+        searchOptions[key] === undefined && delete searchOptions[key]
+    );
+
+    const result = await tripAnalysisFetcher.fetchTripsWithPolylineFilter(searchOptions);
+
+    // Add summary information
+    const summary = {
+      totalTripsWithoutPolyline: result.totalTrips,
+      tripsReturned: result.tripsReturned,
+      timeRange,
+      filters: {
+        tripStatus,
+        rideType,
+        startTime: new Date(startTime * 1000).toISOString(),
+        endTime: new Date(endTime * 1000).toISOString()
+      },
+      dataStructure: 'array'
+    };
+
+    res.json({
+      summary,
+      trips: result.trips,
+      analytics: result.analytics,
+      polylineMetrics: result.polylineMetrics, // Include route-level metrics
+      generatedAt: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Missing polylines error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch trips missing polylines',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+// Fixed Polyline Coverage Report API (for array structure)
+router.get('/api/trips/polyline/coverage-report', [
+  query('timeRange').optional().isIn(['last7d', 'last30d', 'last90d']),
+  query('format').optional().isIn(['json', 'csv']),
+  query('includeDetails').optional().isBoolean(),
+  query('includeRouteBreakdown').optional().isBoolean(),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const {
+      timeRange = 'last30d',
+      format = 'json',
+      includeDetails = false,
+      includeRouteBreakdown = false
+    } = req.query;
+
+    const endTime = Math.floor(Date.now() / 1000);
+    let startTime;
+
+    switch (timeRange) {
+      case 'last7d': startTime = endTime - (7 * 24 * 3600); break;
+      case 'last30d': startTime = endTime - (30 * 24 * 3600); break;
+      case 'last90d': startTime = endTime - (90 * 24 * 3600); break;
+      default: startTime = endTime - (30 * 24 * 3600);
+    }
+
+    const statistics = await tripAnalysisFetcher.getPolylineStatistics({
+      startTime,
+      endTime
+    });
+
+    const report = {
+      reportInfo: {
+        title: 'Polyline Coverage Report (Array Structure)',
+        timeRange,
+        period: {
+          from: new Date(startTime * 1000).toISOString(),
+          to: new Date(endTime * 1000).toISOString()
+        },
+        generatedAt: new Date().toISOString(),
+        dataStructure: 'array',
+        version: '2.0'
+      },
+      summary: statistics.overview,
+      breakdown: {
+        byStatus: statistics.coverageByStatus,
+        byRideType: statistics.coverageByRideType
+      },
+      trends: statistics.dailyCoverage
+    };
+
+    if (includeDetails) {
+      // Get some sample trips with and without polylines
+      const [withPolylines, withoutPolylines] = await Promise.all([
+        tripAnalysisFetcher.fetchTripsWithPolylineFilter({
+          polylineRequired: true,
+          startTime,
+          endTime,
+          size: 10,
+          includeAnalytics: false,
+          includePolylineMetrics: true
+        }),
+        tripAnalysisFetcher.fetchTripsWithPolylineFilter({
+          polylineRequired: false,
+          startTime,
+          endTime,
+          size: 10,
+          includeAnalytics: false,
+          includePolylineMetrics: true
+        })
+      ]);
+
+      report.samples = {
+        tripsWithPolylines: withPolylines.trips.slice(0, 5).map(trip => ({
+          tripId: trip.tripId,
+          tripStatus: trip.tripStatus,
+          rideType: trip.rideType,
+          routeSummary: tripAnalysisFetcher.getTripRouteSummary(trip),
+          polylineMetrics: trip.polylineMetrics
+        })),
+        tripsWithoutPolylines: withoutPolylines.trips.slice(0, 5).map(trip => ({
+          tripId: trip.tripId,
+          tripStatus: trip.tripStatus,
+          rideType: trip.rideType,
+          routeSummary: tripAnalysisFetcher.getTripRouteSummary(trip),
+          polylineMetrics: trip.polylineMetrics
+        }))
+      };
+    }
+
+    if (includeRouteBreakdown && report.samples) {
+      // Add detailed route analysis
+      report.routeAnalysis = {
+        averageRoutesPerTrip: report.samples.tripsWithPolylines.reduce((sum, trip) =>
+            sum + (trip.routeSummary?.totalRoutes || 0), 0) / (report.samples.tripsWithPolylines.length || 1),
+        multiRouteTripsPercentage: report.samples.tripsWithPolylines.filter(trip =>
+            trip.routeSummary?.totalRoutes > 1).length / (report.samples.tripsWithPolylines.length || 1) * 100,
+        partialPolylineTripsPercentage: report.samples.tripsWithPolylines.filter(trip =>
+            trip.routeSummary && trip.routeSummary.routesWithPolylines < trip.routeSummary.totalRoutes
+        ).length / (report.samples.tripsWithPolylines.length || 1) * 100
+      };
+    }
+
+    if (format === 'csv') {
+      // Generate enhanced CSV format for the daily coverage data
+      const csvHeader = [
+        'Date',
+        'Total Trips',
+        'Trips With Polylines',
+        'Trips Without Polylines',
+        'Coverage Percentage',
+        'Data Structure'
+      ].join(',');
+
+      const csvRows = statistics.dailyCoverage.map(day => [
+        day.date,
+        day.total,
+        day.withPolyline,
+        day.withoutPolyline,
+        day.coveragePercentage,
+        'array'
+      ].join(','));
+
+      const csvContent = [csvHeader, ...csvRows].join('\n');
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="polyline_coverage_array_${timeRange}_${Date.now()}.csv"`);
+      res.send('\ufeff' + csvContent);
+    } else {
+      res.json(report);
+    }
+
+  } catch (error) {
+    console.error('Polyline coverage report error:', error);
+    res.status(500).json({
+      error: 'Failed to generate polyline coverage report',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+// Fixed Quick Polyline Check API (for array structure)
+router.get('/api/trips/polyline/quick-check', async (req, res) => {
+  try {
+    const endTime = Math.floor(Date.now() / 1000);
+    const startTime = endTime - (24 * 3600); // Last 24 hours
+
+    const statistics = await tripAnalysisFetcher.getPolylineStatistics({
+      startTime,
+      endTime
+    });
+
+    const quickCheck = {
+      period: 'last24h',
+      status: statistics.overview.coveragePercentage >= 80 ? 'healthy' :
+          statistics.overview.coveragePercentage >= 60 ? 'warning' : 'critical',
+      coveragePercentage: statistics.overview.coveragePercentage,
+      totalTrips: statistics.overview.totalTrips,
+      tripsWithPolyline: statistics.overview.tripsWithPolyline,
+      tripsWithoutPolyline: statistics.overview.tripsWithoutPolyline,
+      checkedAt: new Date().toISOString(),
+      dataStructure: 'array',
+      version: '2.0'
+    };
+
+    res.json(quickCheck);
+
+  } catch (error) {
+    console.error('Polyline quick check error:', error);
+    res.status(500).json({
+      status: 'error',
+      error: 'Failed to perform polyline quick check',
+      checkedAt: new Date().toISOString()
+    });
+  }
+});
+
+// NEW: Route Analysis API
+router.get('/api/trips/polyline/route-analysis', [
+  query('timeRange').optional().isIn(['today', 'yesterday', 'last7d', 'last30d']),
+  query('tripStatus').optional().isIn(['completed', 'cancelled', 'ongoing', 'scheduled', 'assigned']),
+  query('includeRouteLabels').optional().isBoolean(),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const {
+      timeRange = 'last7d',
+      tripStatus,
+      includeRouteLabels = true
+    } = req.query;
+
+    let startTime, endTime;
+    switch (timeRange) {
+      case 'today':
+        startTime = moment().startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+        break;
+      case 'yesterday':
+        startTime = moment().subtract(1, 'day').startOf('day').unix();
+        endTime = moment().subtract(1, 'day').endOf('day').unix();
+        break;
+      case 'last7d':
+        startTime = moment().subtract(7, 'days').startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+        break;
+      case 'last30d':
+        startTime = moment().subtract(30, 'days').startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+        break;
+      default:
+        startTime = moment().subtract(7, 'days').startOf('day').unix();
+        endTime = moment().endOf('day').unix();
+    }
+
+    // Get sample of trips with polylines for analysis
+    const result = await tripAnalysisFetcher.getTripsWithPolylineDetails({
+      polylineRequired: true,
+      validatePolyline: true,
+      includePolylineMetrics: true,
+      startTime,
+      endTime,
+      tripStatus,
+      size: 1000 // Larger sample for analysis
+    });
+
+    const routeAnalysis = {
+      timeRange,
+      period: {
+        from: new Date(startTime * 1000).toISOString(),
+        to: new Date(endTime * 1000).toISOString()
+      },
+      totalTripsAnalyzed: result.trips.length,
+      routeMetrics: {
+        averageRoutesPerTrip: result.polylineMetrics.averageRoutesPerTrip,
+        tripsWithMultipleRoutes: result.polylineMetrics.totalTripsWithMultipleRoutes,
+        multiRouteTripPercentage: result.trips.length > 0 ?
+            (result.polylineMetrics.totalTripsWithMultipleRoutes / result.trips.length * 100).toFixed(2) : 0,
+        totalValidPolylines: result.polylineMetrics.totalValidPolylines,
+        totalInvalidPolylines: result.polylineMetrics.totalInvalidPolylines,
+        averagePolylineLength: result.polylineMetrics.averagePolylineLength
+      }
+    };
+
+    // Analyze route patterns if requested
+    if (includeRouteLabels) {
+      const routeLabelCount = {};
+      const routeLabelPolylineCount = {};
+
+      result.trips.forEach(trip => {
+        if (trip.polylineMetrics && trip.polylineMetrics.routeLabels) {
+          trip.polylineMetrics.routeLabels.forEach(label => {
+            routeLabelCount[label] = (routeLabelCount[label] || 0) + 1;
+            if (trip.polylineMetrics.routesWithPolylines > 0) {
+              routeLabelPolylineCount[label] = (routeLabelPolylineCount[label] || 0) + 1;
+            }
+          });
+        }
+      });
+
+      routeAnalysis.routeLabels = {
+        distribution: routeLabelCount,
+        polylineCoverage: Object.keys(routeLabelCount).reduce((acc, label) => {
+          acc[label] = {
+            total: routeLabelCount[label],
+            withPolylines: routeLabelPolylineCount[label] || 0,
+            coveragePercentage: routeLabelCount[label] > 0 ?
+                ((routeLabelPolylineCount[label] || 0) / routeLabelCount[label] * 100).toFixed(2) : 0
+          };
+          return acc;
+        }, {})
+      };
+    }
+
+    res.json({
+      ...routeAnalysis,
+      generatedAt: new Date().toISOString(),
+      dataStructure: 'array'
+    });
+
+  } catch (error) {
+    console.error('Route analysis error:', error);
+    res.status(500).json({
+      error: 'Failed to perform route analysis',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+// Dashboard route
+router.get('/polyline-dashboard', (req, res) => {
+  res.render('polylineDashboard', {
+    title: 'Polyline Management Dashboard (Array Structure)',
+    moment: moment,
+    user: req.user || null,
+    features: {
+      realTime: true,
+      export: true,
+      analytics: true,
+      validation: true,
+      bulkOperations: true,
+      routeAnalysis: true, // New feature
+      arrayStructure: true // Indicate array support
+    },
+    dataStructure: 'array'
+  });
+});
 // Middleware to add request timing
 router.use((req, res, next) => {
   req.startTime = Date.now();
   next();
 });
+
+
 
 // Error handling middleware
 router.use((error, req, res, next) => {

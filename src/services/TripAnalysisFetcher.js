@@ -332,6 +332,7 @@ class TripAnalysisFetcher {
      * Enhanced trip data formatting with all fields
      */
     formatEnhancedTripData(trip) {
+
         return {
             // Basic trip info
             tripId: trip.tripId,
@@ -925,6 +926,568 @@ class TripAnalysisFetcher {
 
     async searchTrips(searchText, options = {}) {
         return this.advancedSearch(searchText, options);
+    }
+
+    /**
+     * Check polyline existence and get statistics
+     */
+    async getPolylineStatistics(options = {}) {
+        const {
+            startTime,
+            endTime,
+            tripStatus,
+            rideType,
+            driverId,
+            riderId
+        } = options;
+
+        try {
+            const query = {
+                size: 0, // Only get aggregations
+                query: { bool: { filter: [] } },
+                aggs: {
+                    total_trips: {
+                        value_count: { field: "tripId.keyword" }
+                    },
+                    trips_with_polyline: {
+                        filter: {
+                            bool: {
+                                must: [
+                                    { exists: { field: "distanceMatrices.polyline" } },
+                                    {
+                                        bool: {
+                                            must_not: [
+                                                { term: { "distanceMatrices.polyline.keyword": "" } }
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    trips_without_polyline: {
+                        filter: {
+                            bool: {
+                                should: [
+                                    {
+                                        bool: {
+                                            must_not: [
+                                                { exists: { field: "distanceMatrices.polyline" } }
+                                            ]
+                                        }
+                                    },
+                                    { term: { "distanceMatrices.polyline.keyword": "" } }
+                                ]
+                            }
+                        }
+                    },
+                    polyline_coverage_by_status: {
+                        terms: { field: "tripStatus.keyword", size: 20 },
+                        aggs: {
+                            with_polyline: {
+                                filter: {
+                                    bool: {
+                                        must: [
+                                            { exists: { field: "distanceMatrices.polyline" } },
+                                            {
+                                                bool: {
+                                                    must_not: [
+                                                        { term: { "distanceMatrices.polyline.keyword": "" } }
+                                                    ]
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    polyline_coverage_by_ride_type: {
+                        terms: { field: "rideType.keyword", size: 20 },
+                        aggs: {
+                            with_polyline: {
+                                filter: {
+                                    bool: {
+                                        must: [
+                                            { exists: { field: "distanceMatrices.polyline" } },
+                                            {
+                                                bool: {
+                                                    must_not: [
+                                                        { term: { "distanceMatrices.polyline.keyword": "" } }
+                                                    ]
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    daily_polyline_coverage: {
+                        date_histogram: {
+                            field: "createdAt._seconds",
+                            calendar_interval: "1d",
+                            format: "yyyy-MM-dd"
+                        },
+                        aggs: {
+                            with_polyline: {
+                                filter: {
+                                    bool: {
+                                        must: [
+                                            { exists: { field: "distanceMatrices.polyline" } },
+                                            {
+                                                bool: {
+                                                    must_not: [
+                                                        { term: { "distanceMatrices.polyline.keyword": "" } }
+                                                    ]
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            // Add filters based on options
+            if (startTime || endTime) {
+                const rangeFilter = { range: { "createdAt._seconds": {} } };
+                if (startTime) rangeFilter.range["createdAt._seconds"].gte = startTime;
+                if (endTime) rangeFilter.range["createdAt._seconds"].lte = endTime;
+                query.query.bool.filter.push(rangeFilter);
+            }
+
+            if (tripStatus) {
+                query.query.bool.filter.push({
+                    term: { "tripStatus.keyword": tripStatus }
+                });
+            }
+
+            await this.getTrips();
+
+            if (rideType) {
+                query.query.bool.filter.push({
+                    term: { "rideType.keyword": rideType }
+                });
+            }
+
+            if (driverId) {
+                query.query.bool.filter.push({
+                    term: { "driver.id.keyword": driverId }
+                });
+            }
+
+            if (riderId) {
+                query.query.bool.filter.push({
+                    term: { "rider.id.keyword": riderId }
+                });
+            }
+
+            console.log('Executing polyline statistics query...');
+            const response = await client.search({
+                index: indexName,
+                body: query,
+                timeout: '30s'
+            });
+
+            return this.processPolylineStatistics(response.aggregations);
+
+        } catch (error) {
+            console.error('Error fetching polyline statistics:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Process polyline statistics response
+     */
+    processPolylineStatistics(aggregations) {
+        const totalTrips = aggregations.total_trips.value;
+        const tripsWithPolyline = aggregations.trips_with_polyline.doc_count;
+        const tripsWithoutPolyline = aggregations.trips_without_polyline.doc_count;
+
+        console.log(aggregations.trips_with_polyline);
+        const coveragePercentage = totalTrips > 0 ?
+            ((tripsWithPolyline / totalTrips) * 100).toFixed(2) : 0;
+
+        const statistics = {
+            overview: {
+                totalTrips,
+                tripsWithPolyline,
+                tripsWithoutPolyline,
+                coveragePercentage: parseFloat(coveragePercentage)
+            },
+            coverageByStatus: {},
+            coverageByRideType: {},
+            dailyCoverage: []
+        };
+
+        // Process coverage by status
+        if (aggregations.polyline_coverage_by_status?.buckets) {
+            aggregations.polyline_coverage_by_status.buckets.forEach(bucket => {
+                const total = bucket.doc_count;
+                const withPolyline = bucket.with_polyline.doc_count;
+                statistics.coverageByStatus[bucket.key] = {
+                    total,
+                    withPolyline,
+                    withoutPolyline: total - withPolyline,
+                    coveragePercentage: total > 0 ?
+                        parseFloat(((withPolyline / total) * 100).toFixed(2)) : 0
+                };
+            });
+        }
+
+        // Process coverage by ride type
+        if (aggregations.polyline_coverage_by_ride_type?.buckets) {
+            aggregations.polyline_coverage_by_ride_type.buckets.forEach(bucket => {
+                const total = bucket.doc_count;
+                const withPolyline = bucket.with_polyline.doc_count;
+                statistics.coverageByRideType[bucket.key] = {
+                    total,
+                    withPolyline,
+                    withoutPolyline: total - withPolyline,
+                    coveragePercentage: total > 0 ?
+                        parseFloat(((withPolyline / total) * 100).toFixed(2)) : 0
+                };
+            });
+        }
+
+        // Process daily coverage
+        if (aggregations.daily_polyline_coverage?.buckets) {
+            statistics.dailyCoverage = aggregations.daily_polyline_coverage.buckets.map(bucket => {
+                const total = bucket.doc_count;
+                const withPolyline = bucket.with_polyline.doc_count;
+                return {
+                    date: bucket.key_as_string,
+                    total,
+                    withPolyline,
+                    withoutPolyline: total - withPolyline,
+                    coveragePercentage: total > 0 ?
+                        parseFloat(((withPolyline / total) * 100).toFixed(2)) : 0
+                };
+            });
+        }
+
+        return statistics;
+    }
+
+    /**
+     * Enhanced fetch trips with polyline filtering
+     */
+    async fetchTripsWithPolylineFilter(options = {}) {
+        const {
+            polylineRequired = true, // true = only trips with polyline, false = only trips without polyline, null = all trips
+            validatePolyline = false, // if true, also validate polyline format
+            ...otherOptions
+        } = options;
+
+        // Add polyline filter to the existing query building logic
+        const originalQuery = this.buildEnhancedQuery(otherOptions);
+
+        if (polylineRequired !== null) {
+            if (polylineRequired) {
+                // Only trips WITH polyline
+                originalQuery.query.bool.filter.push({
+                    bool: {
+                        must: [
+                            { exists: { field: "distanceMatrices.polyline" } },
+                            {
+                                bool: {
+                                    must_not: [
+                                        { term: { "distanceMatrices.polyline.keyword": "" } }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                });
+
+                if (validatePolyline) {
+                    // Add basic polyline validation (check if it's not empty and has reasonable length)
+                    originalQuery.query.bool.filter.push({
+                        script: {
+                            script: {
+                                source: "doc['distanceMatrices.polyline.keyword'].value.length() > 10",
+                                lang: "painless"
+                            }
+                        }
+                    });
+                }
+            } else {
+                // Only trips WITHOUT polyline
+                originalQuery.query.bool.filter.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must_not: [
+                                        { exists: { field: "distanceMatrices.polyline" } }
+                                    ]
+                                }
+                            },
+                            { term: { "distanceMatrices.polyline.keyword": "" } }
+                        ]
+                    }
+                });
+            }
+        }
+
+        try {
+            console.log('Executing enhanced trip query with polyline filter...');
+            const response = await client.search({
+                index: indexName,
+                body: originalQuery,
+                timeout: '30s'
+            });
+
+            const result = this.processEnhancedResponse(response, options);
+
+            // Add polyline-specific metadata
+            result.polylineFilter = {
+                required: polylineRequired,
+                validated: validatePolyline,
+                appliedAt: new Date().toISOString()
+            };
+
+            return result;
+
+        } catch (error) {
+            console.error('Error fetching trips with polyline filter:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get trips with detailed polyline information
+     */
+    async getTripsWithPolylineDetails(options = {}) {
+        const { includePolylineMetrics = true, ...searchOptions } = options;
+
+        const result = await this.fetchTripsWithPolylineFilter({
+            ...searchOptions,
+            polylineRequired: true,
+            validatePolyline: true
+        });
+
+        if (includePolylineMetrics && result.trips.length > 0) {
+            // Add polyline metrics to each trip
+            result.trips = result.trips.map(trip => {
+                if (trip.distanceMatrices?.polyline) {
+                    const polyline = trip.distanceMatrices.polyline;
+                    trip.polylineMetrics = {
+                        length: polyline.length,
+                        isValid: polyline.length > 10,
+                        estimatedPoints: this.estimatePolylinePoints(polyline),
+                        hasMultipleRoutes: Array.isArray(trip.distanceMatrices) && trip.distanceMatrices.length > 1
+                    };
+                }
+                return trip;
+            });
+
+            // Add aggregate polyline metrics
+            result.polylineMetrics = {
+                totalTripsWithPolyline: result.trips.length,
+                averagePolylineLength: result.trips.reduce((sum, trip) =>
+                    sum + (trip.polylineMetrics?.length || 0), 0) / result.trips.length,
+                validPolylines: result.trips.filter(trip =>
+                    trip.polylineMetrics?.isValid).length,
+                invalidPolylines: result.trips.filter(trip =>
+                    !trip.polylineMetrics?.isValid).length
+            };
+        }
+
+        return result;
+    }
+
+    /**
+     * Estimate number of points in a polyline (rough calculation)
+     */
+    estimatePolylinePoints(polyline) {
+        // Very rough estimation based on polyline string length
+        // Actual point count would require decoding the polyline
+        return Math.floor(polyline.length / 5);
+    }
+
+    /**
+     * Validate individual trip's polyline data
+     */
+    async validateTripPolyline(tripId) {
+        try {
+            const trip = await this.getTripById(tripId);
+
+            const validation = {
+                tripId,
+                hasPolyline: false,
+                isValid: false,
+                details: {},
+                issues: []
+            };
+
+            if (!trip.distanceMatrices) {
+                validation.issues.push('No distanceMatrices field found');
+                return validation;
+            }
+
+            const polylineData = trip.distanceMatrices.polyline;
+
+            if (!polylineData) {
+                validation.issues.push('No polyline field in distanceMatrices');
+                return validation;
+            }
+
+            if (typeof polylineData !== 'string') {
+                validation.issues.push('Polyline is not a string');
+                return validation;
+            }
+
+            if (polylineData.length === 0) {
+                validation.issues.push('Polyline is empty string');
+                return validation;
+            }
+
+            validation.hasPolyline = true;
+
+            // Basic validation checks
+            validation.details = {
+                length: polylineData.length,
+                startsWithValidChar: /^[a-zA-Z0-9_\-@\?\\]/.test(polylineData),
+                hasValidChars: /^[a-zA-Z0-9_\-@\?\\`~]+$/.test(polylineData),
+                estimatedPoints: this.estimatePolylinePoints(polylineData)
+            };
+
+            // Check if polyline seems valid
+            if (validation.details.length < 10) {
+                validation.issues.push('Polyline too short (likely invalid)');
+            }
+
+            if (!validation.details.startsWithValidChar) {
+                validation.issues.push('Polyline starts with invalid character');
+            }
+
+            if (!validation.details.hasValidChars) {
+                validation.issues.push('Polyline contains invalid characters');
+            }
+
+            validation.isValid = validation.issues.length === 0;
+
+            return validation;
+
+        } catch (error) {
+            return {
+                tripId,
+                hasPolyline: false,
+                isValid: false,
+                error: error.message,
+                issues: ['Error validating trip: ' + error.message]
+            };
+        }
+    }
+
+    /**
+     * Bulk validate polylines for multiple trips
+     */
+    async bulkValidatePolylines(tripIds) {
+        const validations = [];
+
+        for (const tripId of tripIds) {
+            try {
+                const validation = await this.validateTripPolyline(tripId);
+                validations.push(validation);
+            } catch (error) {
+                validations.push({
+                    tripId,
+                    hasPolyline: false,
+                    isValid: false,
+                    error: error.message,
+                    issues: ['Bulk validation error: ' + error.message]
+                });
+            }
+        }
+
+        const summary = {
+            totalChecked: validations.length,
+            withPolyline: validations.filter(v => v.hasPolyline).length,
+            valid: validations.filter(v => v.isValid).length,
+            invalid: validations.filter(v => v.hasPolyline && !v.isValid).length,
+            missing: validations.filter(v => !v.hasPolyline).length
+        };
+
+        return {
+            summary,
+            validations,
+            checkedAt: new Date().toISOString()
+        };
+    }
+
+    async getTrips() {
+
+        try {
+            // time range filter
+            const response = await client.search({
+                index: indexName,
+                body: {
+                    query: {
+                        bool: {
+                            filter: [
+                                {
+                                    range: {
+                                        "createdAt._seconds": {
+                                            gte: moment().subtract(1, 'days').unix(),
+                                            lte: moment().unix()
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+
+
+                    },
+                    size: 10000, // Adjust size as needed
+                    sort: [{ "createdAt._seconds": { order: "desc" } }]
+                }
+            });
+            const hits = response.body ? response.body.hits.hits : response.hits.hits;
+            let polylineCount = 0;
+            let noPolylineCount = 0;
+            let tripCountWithNoPolyline = 0;
+            let noDistanceMatricesCount = 0;
+            let emptyDistanceMatricesCount = 0;
+
+            for (let hit of hits) {
+                const trip = hit._source;
+                if (!trip || !trip.distanceMatrices) {
+                    noDistanceMatricesCount++;
+                    continue; // Skip if no distanceMatrices
+                }
+                let hasPolyline = true;
+                if (trip.distanceMatrices.length === 0) {
+                    emptyDistanceMatricesCount++;
+                    console.log(trip.distanceMatrices);
+                    hasPolyline = false;
+                }
+                for (let x= 0; x < trip.distanceMatrices.length; x++) {
+                    if (trip.distanceMatrices[x].polyline && trip.distanceMatrices[x].polyline.length > 0) {
+                        polylineCount++;
+                    } else {
+                        hasPolyline = false;
+                        noPolylineCount++;
+                        console.log(moment.unix(trip.createdAt._seconds).format('YYYY-MM-DD HH:mm:ss'), 'No polyline for trip:', trip.tripId, 'appVersion:', trip.appVersion, 'distanceMatrices:', trip.distanceMatrices[x]);
+                    }
+                }
+                if (!hasPolyline) {
+                    tripCountWithNoPolyline++;
+                }
+            }
+
+            console.log(`Total trips: ${hits.length}\nPolyline count: ${polylineCount}\nNo polyline count: ${noPolylineCount}\nNo distanceMatrices array count: ${noDistanceMatricesCount}`);
+            console.log(`Trip count with no polyline: ${tripCountWithNoPolyline}\nEmpty distanceMatrices array count: ${emptyDistanceMatricesCount}`);
+            return hits.map(hit => this.formatEnhancedTripData(hit._source));
+        } catch (error) {
+            console.error('Error fetching trips:', error);
+            throw error;
+        }
     }
 }
 
