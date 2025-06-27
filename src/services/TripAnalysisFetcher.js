@@ -1434,7 +1434,7 @@ class TripAnalysisFetcher {
                                 {
                                     range: {
                                         "createdAt._seconds": {
-                                            gte: moment().subtract(1, 'days').unix(),
+                                            gte: moment().subtract(10, 'days').unix(),
                                             lte: moment().unix()
                                         }
                                     }
@@ -1461,23 +1461,30 @@ class TripAnalysisFetcher {
                     noDistanceMatricesCount++;
                     continue; // Skip if no distanceMatrices
                 }
-                let hasPolyline = true;
+                let hasPolyline = false;
                 if (trip.distanceMatrices.length === 0) {
                     emptyDistanceMatricesCount++;
-                    console.log(trip.distanceMatrices);
+                    // console.log(moment.unix(trip.createdAt._seconds).format('YYYY-MM-DD HH:mm:ss'), 'No polyline for trip:', trip.tripId, 'appVersion:', trip.appVersion, 'distanceMatrices:', trip.distanceMatrices);
                     hasPolyline = false;
                 }
                 for (let x= 0; x < trip.distanceMatrices.length; x++) {
                     if (trip.distanceMatrices[x].polyline && trip.distanceMatrices[x].polyline.length > 0) {
                         polylineCount++;
+                        // if (trip.subType === 'scheduled_trip') {
+                        //     console.log(moment.unix(trip.createdAt._seconds).format('YYYY-MM-DD HH:mm:ss'), 'No polyline for trip:', trip.tripId, 'appVersion:', trip.appVersion, 'distanceMatrices:', trip.distanceMatrices[x], 'status:', trip.tripStatus, 'subType:', trip.subType, 'type:', trip.type);
+                        // }
+                        hasPolyline = true;
                     } else {
-                        hasPolyline = false;
                         noPolylineCount++;
-                        console.log(moment.unix(trip.createdAt._seconds).format('YYYY-MM-DD HH:mm:ss'), 'No polyline for trip:', trip.tripId, 'appVersion:', trip.appVersion, 'distanceMatrices:', trip.distanceMatrices[x]);
+                        // console.log(moment.unix(trip.createdAt._seconds).format('YYYY-MM-DD HH:mm:ss'), 'No polyline for trip:', trip.tripId, 'appVersion:', trip.appVersion, 'distanceMatrices:', trip.distanceMatrices[x]);
                     }
                 }
                 if (!hasPolyline) {
                     tripCountWithNoPolyline++;
+                    if (trip.subType === 'scheduled_trip') {
+                        console.log(moment.unix(trip.createdAt._seconds).format('YYYY-MM-DD HH:mm:ss'), 'No polyline for trip:', trip.tripId, 'appVersion:', trip.appVersion, 'distanceMatrices:', trip.distanceMatrices, 'status:', trip.tripStatus, 'subType:', trip.subType, 'type:', trip.type);
+                        // console.log(trip);
+                    }
                 }
             }
 

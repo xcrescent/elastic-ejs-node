@@ -244,6 +244,7 @@ class RideLocationHistoryFetcher {
                 }
             } else {
                 lowAccuracyCount++;
+                console.log(`Low accuracy location found: ${hit._source.currentLocation.lat}, ${hit._source.currentLocation.lng}`);
             }
             lastTimestamp = timestamp;
         }

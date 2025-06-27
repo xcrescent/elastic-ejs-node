@@ -35,6 +35,7 @@
             height: 500px;
             border-radius: 15px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
         }
         .search-form {
             background: white;
@@ -73,9 +74,90 @@
         .error-alert {
             display: none;
         }
+
+        /* Fullscreen Map Styles */
+        .map-fullscreen {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 9999 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+        }
+
+        .fullscreen-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 9998;
+            display: none;
+        }
+
+        .fullscreen-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            display: none;
+        }
+
+        .fullscreen-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 6px;
+            padding: 8px 12px;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s ease;
+        }
+
+        .fullscreen-btn:hover {
+            background: rgba(255, 255, 255, 1);
+            transform: scale(1.05);
+        }
+
+        body.fullscreen-active {
+            overflow: hidden;
+        }
+
+        /* Hide other content when in fullscreen */
+        body.fullscreen-active .dashboard-header,
+        body.fullscreen-active .container-fluid > *:not(.fullscreen-overlay):not(.fullscreen-controls) {
+            display: none !important;
+        }
+
+        .map-container {
+            position: relative;
+        }
     </style>
 </head>
 <body>
+<!-- Fullscreen Overlay -->
+<div class="fullscreen-overlay" id="fullscreenOverlay"></div>
+
+<!-- Fullscreen Controls -->
+<div class="fullscreen-controls" id="fullscreenControls">
+    <button class="btn btn-light btn-sm me-2" onclick="toggleFullscreen()">
+        <i class="fas fa-compress"></i> Exit Fullscreen
+    </button>
+    <button class="btn btn-primary btn-sm" onclick="centerMapOnMarkers()">
+        <i class="fas fa-crosshairs"></i> Center View
+    </button>
+</div>
+
 <!-- Header -->
 <div class="dashboard-header">
     <div class="container">
@@ -238,10 +320,16 @@
         <div class="row">
             <div class="col-md-8 mb-4">
                 <div class="card">
-                    <div class="card-header">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="fas fa-map-marked-alt me-2"></i>Location Map</h5>
+                        <button class="btn btn-outline-primary btn-sm" onclick="toggleFullscreen()">
+                            <i class="fas fa-expand me-1"></i>Fullscreen
+                        </button>
                     </div>
-                    <div class="card-body p-0">
+                    <div class="card-body p-0 map-container">
+                        <button class="fullscreen-btn" onclick="toggleFullscreen()">
+                            <i class="fas fa-expand"></i>
+                        </button>
                         <div id="map"></div>
                     </div>
                 </div>
@@ -294,6 +382,7 @@
     let map;
     let markers = [];
     let polyline;
+    let isFullscreen = false;
 
     // Initialize the page
     document.addEventListener('DOMContentLoaded', function() {
@@ -301,6 +390,7 @@
         setInterval(updateTime, 1000);
         initializeMap();
         setupEventListeners();
+        setupKeyboardShortcuts();
     });
 
     function updateTime() {
@@ -331,6 +421,75 @@
         document.getElementById('clearBtn').addEventListener('click', clearResults);
     }
 
+    function setupKeyboardShortcuts() {
+        document.addEventListener('keydown', function(e) {
+            // ESC to exit fullscreen
+            if (e.key === 'Escape' && isFullscreen) {
+                toggleFullscreen();
+            }
+            // F11 or F to toggle fullscreen
+            if ((e.key === 'F11' || (e.key === 'f' && e.ctrlKey)) && !e.defaultPrevented) {
+                e.preventDefault();
+                toggleFullscreen();
+            }
+        });
+    }
+
+    function toggleFullscreen() {
+        const mapElement = document.getElementById('map');
+        const overlay = document.getElementById('fullscreenOverlay');
+        const controls = document.getElementById('fullscreenControls');
+        const body = document.body;
+        const fullscreenBtn = document.querySelector('.fullscreen-btn');
+
+        if (!isFullscreen) {
+            // Enter fullscreen
+            isFullscreen = true;
+            body.classList.add('fullscreen-active');
+            mapElement.classList.add('map-fullscreen');
+            overlay.style.display = 'block';
+            controls.style.display = 'block';
+            fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i>';
+
+            // Resize map to fit new container
+            setTimeout(() => {
+                map.invalidateSize();
+                if (markers.length > 0) {
+                    centerMapOnMarkers();
+                }
+            }, 100);
+        } else {
+            // Exit fullscreen
+            isFullscreen = false;
+            body.classList.remove('fullscreen-active');
+            mapElement.classList.remove('map-fullscreen');
+            overlay.style.display = 'none';
+            controls.style.display = 'none';
+            fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+
+            // Resize map to fit original container
+            setTimeout(() => {
+                map.invalidateSize();
+                if (markers.length > 0) {
+                    centerMapOnMarkers();
+                }
+            }, 100);
+        }
+    }
+
+    function centerMapOnMarkers() {
+        if (markers.length === 0) return;
+
+        if (markers.length === 1) {
+            map.setView(markers[0].getLatLng(), 15);
+        } else if (polyline) {
+            map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
+        } else {
+            const group = new L.featureGroup(markers);
+            map.fitBounds(group.getBounds(), { padding: [20, 20] });
+        }
+    }
+
     async function handleSearch(e) {
         e.preventDefault();
 
@@ -342,7 +501,6 @@
             customEnd: document.getElementById('customEnd').value,
             recordLimit: document.getElementById('recordLimit').value
         };
-
 
         if (formData.timeRange === 'custom' && (!formData.customStart || !formData.customEnd)) {
             showError('Please select both start and end dates for custom range');
@@ -412,14 +570,28 @@
                 const lng = location.currentLocation.lng;
                 points.push([lat, lng]);
 
-                // Create marker
-                const marker = L.marker([lat, lng])
+                // Create marker with different colors based on status
+                let iconColor = '#007bff'; // default blue
+                if (location.online && location.bookedSeats > 0) iconColor = '#28a745'; // green for on ride
+                if (!location.online) iconColor = '#6c757d'; // gray for offline
+
+                const customIcon = L.divIcon({
+                    className: 'custom-marker',
+                    html: `<div style="background-color: ${iconColor}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8]
+                });
+
+                const marker = L.marker([lat, lng], { icon: customIcon })
                     .bindPopup(`
+                        <div style="min-width: 200px;">
                             <strong>Ride:</strong> ${location.rideId || 'N/A'}<br>
                             <strong>Time:</strong> ${new Date(location.createdAt._seconds * 1000).toLocaleString()}<br>
                             <strong>Online:</strong> ${location.online ? 'Yes' : 'No'}<br>
-                            <strong>Seats:</strong> ${location.bookedSeats || 0}
-                        `);
+                            <strong>Seats:</strong> ${location.bookedSeats || 0}<br>
+                            <strong>Location:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}
+                        </div>
+                    `);
 
                 marker.addTo(map);
                 markers.push(marker);
@@ -428,7 +600,7 @@
 
         // Create route polyline
         if (points.length > 1) {
-            polyline = L.polyline(points, {color: 'blue', weight: 3, opacity: 0.7}).addTo(map);
+            polyline = L.polyline(points, {color: '#007bff', weight: 3, opacity: 0.7}).addTo(map);
             map.fitBounds(polyline.getBounds());
         } else if (points.length === 1) {
             map.setView(points[0], 15);
@@ -447,17 +619,17 @@
             const statusColor = location.online ? (location.bookedSeats > 0 ? 'success' : 'primary') : 'secondary';
 
             item.innerHTML = `
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <small class="text-muted">${time.toLocaleString()}</small>
-                            <p class="mb-1"><strong>Ride:</strong> ${location.rideId || 'N/A'}</p>
-                        </div>
-                        <span class="badge bg-${statusColor} status-badge">
-                            ${location.online && location.bookedSeats > 0 ? 'On Ride' : location.online && location.bookedSeats === 0 ? 'Available' : 'On Break'}
-                        </span>
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <small class="text-muted">${time.toLocaleString()}</small>
+                        <p class="mb-1"><strong>Ride:</strong> ${location.rideId || 'N/A'}</p>
                     </div>
-                    <p class="mb-0"><small>Seats: ${location.bookedSeats || 0}</small></p>
-                `;
+                    <span class="badge bg-${statusColor} status-badge">
+                        ${location.online && location.bookedSeats > 0 ? 'On Ride' : location.online && location.bookedSeats === 0 ? 'Available' : 'On Break'}
+                    </span>
+                </div>
+                <p class="mb-0"><small>Seats: ${location.bookedSeats || 0}</small></p>
+            `;
 
             timeline.appendChild(item);
         });
@@ -480,19 +652,18 @@
             if (location.outForDelivery) statusBadges.push('<span class="badge bg-warning me-1">Delivery</span>');
             if (location.checkedIn) statusBadges.push('<span class="badge bg-info me-1">Offline</span>');
 
-
             row.innerHTML = `
-                    <td>${time.toLocaleString()}</td>
-                    <td>${location.rideId || 'N/A'}</td>
-                    <td>${lat}, ${lng}</td>
-                    <td>${statusBadges.join('') || '<span class="badge bg-secondary">Offline</span>'}</td>
-                    <td>${location.bookedSeats || 0}</td>
-                    <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="showLocationOnMap(${lat}, ${lng})">
-                            <i class="fas fa-map-marker-alt"></i>
-                        </button>
-                    </td>
-                `;
+                <td>${time.toLocaleString()}</td>
+                <td>${location.rideId || 'N/A'}</td>
+                <td>${lat}, ${lng}</td>
+                <td>${statusBadges.join('') || '<span class="badge bg-secondary">Offline</span>'}</td>
+                <td>${location.bookedSeats || 0}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="showLocationOnMap(${lat}, ${lng})">
+                        <i class="fas fa-map-marker-alt"></i>
+                    </button>
+                </td>
+            `;
 
             tbody.appendChild(row);
         });
@@ -523,6 +694,11 @@
         markers = [];
         if (polyline) map.removeLayer(polyline);
         map.setView([28.6139, 77.2090], 10);
+
+        // Exit fullscreen if active
+        if (isFullscreen) {
+            toggleFullscreen();
+        }
     }
 
     function showLoading(show) {
